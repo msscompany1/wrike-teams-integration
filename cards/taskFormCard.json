@@ -1,0 +1,38 @@
+{
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "type": "AdaptiveCard",
+    "version": "1.4",
+    "body": [
+      {
+        "type": "TextBlock",
+        "text": "Create Wrike Task",
+        "weight": "Bolder",
+        "size": "Medium"
+      },
+      {
+        "type": "Input.Text",
+        "id": "title",
+        "placeholder": "Enter task title",
+        "isRequired": true,
+        "label": "Task Title"
+      },
+      {
+        "type": "Input.Text",
+        "id": "assignee",
+        "placeholder": "Enter assignee email",
+        "label": "Assign To"
+      },
+      {
+        "type": "Input.Date",
+        "id": "dueDate",
+        "label": "Due Date"
+      }
+    ],
+    "actions": [
+      {
+        "type": "Action.Submit",
+        "title": "Create Task"
+      }
+    ]
+  }
+  

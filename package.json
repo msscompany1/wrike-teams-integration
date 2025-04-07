@@ -1,0 +1,17 @@
+{
+  "name": "wrike-teams-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "botbuilder": "^4.23.2",
+    "dotenv": "^16.4.7",
+    "restify": "^11.1.0"
+  }
+}
