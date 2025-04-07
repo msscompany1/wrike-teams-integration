@@ -6,10 +6,10 @@ const { TeamsActivityHandler, CardFactory, TurnContext } = require('botbuilder')
 const fs = require('fs');
 const path = require('path');
 
-// Create server
-const server = restify.createServer();
-server.listen(process.env.PORT || 3978, function () {
-  console.log(`\nBot is listening on http://localhost:${server.address().port}`);
+
+const port = process.env.PORT || 3978;
+server.listen(port, () => {
+  console.log(`Bot is listening on http://localhost:${port}`);
 });
 
 // Create adapter
@@ -68,6 +68,7 @@ server.post('/api/messages', async (req, res) => {
   });
 });
 server.get('/', (req, res, next) => {
-  res.send(200, '✔️ Bot is running.');
+  res.send(200, '✔️ Bot is running');
   next();
 });
+
