@@ -8,8 +8,8 @@ const path = require('path');
 
 // Create server
 const server = restify.createServer();
-server.listen(3978, () => {
-  console.log(`\nBot is listening on http://localhost:3978`);
+server.listen(process.env.PORT || 3978, function () {
+  console.log(`\nBot is listening on http://localhost:${server.address().port}`);
 });
 
 // Create adapter
