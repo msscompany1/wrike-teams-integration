@@ -24,12 +24,6 @@ const adapter = new BotFrameworkAdapter({
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
-// ✅ Middleware to attach state
-adapter.use(async (context, next) => {
-  context.turnState.set('conversationState', conversationState);
-  await next();
-});
-
 // ✅ Bot logic (Wrike Teams Bot)
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context, action) {
