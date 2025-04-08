@@ -5,13 +5,10 @@
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "botbuilder": "^4.23.2",
     "dotenv": "^16.4.7",
     "restify": "^11.1.0"
   }
 }
+
