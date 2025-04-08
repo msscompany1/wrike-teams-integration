@@ -50,18 +50,31 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const { title, dueDate, assignee } = action.data;
-
-    const responseText = `✅ Task created: ${title} (Due: ${dueDate}) Assigned to: ${assignee}`;
-    await context.sendActivity(responseText);
-
-    return {
-      composeExtension: {
-        type: 'result',
-        attachmentLayout: 'list',
-        attachments: [],
-      },
-    };
+    try {
+      console.log("🔁 SubmitAction received");
+      console.log("🟡 Action data:", JSON.stringify(action, null, 2));
+  
+      const { title, dueDate, assignee } = action.data;
+  
+      if (!title) {
+        throw new Error("Missing required field: title");
+      }
+  
+      const responseText = `✅ Task created: ${title} (Due: ${dueDate}) Assigned to: ${assignee}`;
+      await context.sendActivity(responseText);
+  
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: [],
+        },
+      };
+    } catch (error) {
+      console.error("❌ Error in submitAction:", error);
+      await context.sendActivity("⚠️ Failed to create task. Try again later.");
+      throw error; // This is what causes Teams to show the red "Unable to reach app"
+    }
   }
 }
 
