@@ -98,14 +98,27 @@ class WrikeBot extends TeamsActivityHandler {
 
       console.log("🟢 Wrike API Response:", wrikeResponse.data);
 
-      await context.sendActivity(`✅ Task created: ${title} (Due: ${dueDate}) Assigned to: ${assignee}`);
+      await context.sendActivity({
+        type: 'message',
+        text: `✅ Wrike task created successfully: [View Task](https://www.wrike.com/open.htm?id=${wrikeResponse.data.data[0].id})`,
+      });
+      
       return {
         composeExtension: {
           type: 'result',
           attachmentLayout: 'list',
-          attachments: [],
+          attachments: [
+            CardFactory.heroCard(`Wrike Task Created`, `✅ Title: ${title}`, null, [
+              {
+                type: 'openUrl',
+                title: 'Open in Wrike',
+                value: `https://www.wrike.com/open.htm?id=${wrikeResponse.data.data[0].id}`,
+              },
+            ]),
+          ],
         },
       };
+      
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       await context.sendActivity("⚠️ Failed to create task. Try again later.");

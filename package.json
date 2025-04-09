@@ -6,9 +6,10 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@azure/msal-node": "^3.5.0",
+    "axios": "^1.8.4",
     "botbuilder": "^4.23.2",
     "dotenv": "^16.4.7",
     "restify": "^11.1.0"
   }
 }
-
