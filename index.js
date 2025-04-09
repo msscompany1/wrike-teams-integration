@@ -100,7 +100,7 @@ class WrikeBot extends TeamsActivityHandler {
 
       await context.sendActivity({
         type: 'message',
-        text: `✅ Wrike task created successfully: [View Task](https://www.wrike.com/open.htm?id=${wrikeResponse.data.data[0].id})`,
+        text: `✅ Wrike task created successfully!\n🔗 [Open in Wrike](${wrikeResponse.data.data[0].permalink})`,
       });
       
       return {
@@ -108,16 +108,22 @@ class WrikeBot extends TeamsActivityHandler {
           type: 'result',
           attachmentLayout: 'list',
           attachments: [
-            CardFactory.heroCard(`Wrike Task Created`, `✅ Title: ${title}`, null, [
-              {
-                type: 'openUrl',
-                title: 'Open in Wrike',
-                value: `https://www.wrike.com/open.htm?id=${wrikeResponse.data.data[0].id}`,
-              },
-            ]),
+            CardFactory.heroCard(
+              'Wrike Task Created',
+              `✅ Title: ${title}\n🗓 Due: ${dueDate}`,
+              null,
+              [
+                {
+                  type: 'openUrl',
+                  title: 'View in Wrike',
+                  value: wrikeResponse.data.data[0].permalink,
+                },
+              ]
+            ),
           ],
         },
       };
+      
       
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
