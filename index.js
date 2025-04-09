@@ -60,49 +60,45 @@ class WrikeBot extends TeamsActivityHandler {
       },
     };
   }
-
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     try {
       console.log("🔁 SubmitAction received");
       console.log("🟡 Action data:", JSON.stringify(action, null, 2));
-
+  
       const { title, dueDate, assignee } = action.data;
       if (!title) throw new Error("Missing required field: title");
-
-      // ✅ Acquire Microsoft Graph Token
+  
+      // ✅ Acquire Microsoft Graph Token (optional if used for Graph API)
       const tokenResponse = await cca.acquireTokenByClientCredential({
         scopes: ["https://graph.microsoft.com/.default"],
       });
-
+  
       console.log("🟢 MS Graph Token acquired:", tokenResponse.accessToken ? "✅" : "❌");
-
-      // ✅ Send task to Wrike using saved WRIKE_ACCESS_TOKEN
+  
+      // ✅ Create task in Wrike
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
-      const wrikeResponse = await axios.post(
-        'https://www.wrike.com/api/v4/tasks',
-        {
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
+        headers: {
+          Authorization: `Bearer ${wrikeToken}`,
+        },
+        params: {
           title,
           importance: 'High',
-          dates: {
-            due: dueDate,
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${wrikeToken}`,
-            'Content-Type': 'application/json',
-          },
+          // ❗ Wrike API accepts due date like this
+          dates: JSON.stringify({ due: dueDate })
         }
-      );
-
-      console.log("🟢 Wrike API Response:", wrikeResponse.data);
-
+      });
+  
+      const permalink = wrikeResponse.data?.data?.[0]?.permalink || null;
+  
+      console.log("🟢 Wrike Task Created:", permalink);
+  
+      // ✅ Send success message to Teams
       await context.sendActivity({
         type: 'message',
-        text: `✅ Wrike task created successfully!\n🔗 [Open in Wrike](${wrikeResponse.data.data[0].permalink})`,
+        text: `✅ Task created: **${title}**\n🔗 [View in Wrike](${permalink})`,
       });
-      
+  
       return {
         composeExtension: {
           type: 'result',
@@ -110,27 +106,27 @@ class WrikeBot extends TeamsActivityHandler {
           attachments: [
             CardFactory.heroCard(
               'Wrike Task Created',
-              `✅ Title: ${title}\n🗓 Due: ${dueDate}`,
+              `✅ Title: ${title}`,
               null,
-              [
-                {
-                  type: 'openUrl',
-                  title: 'View in Wrike',
-                  value: wrikeResponse.data.data[0].permalink,
-                },
-              ]
+              permalink
+                ? [{ type: 'openUrl', title: 'Open Task in Wrike', value: permalink }]
+                : []
             ),
           ],
         },
       };
-      
-      
     } catch (error) {
-      console.error("❌ Error in submitAction:", error.response?.data || error.message);
-      await context.sendActivity("⚠️ Failed to create task. Try again later.");
-      throw error;
+      console.error("❌ Error in submitAction:", error?.response?.data || error.message);
+      await context.sendActivity("⚠️ Something went wrong. Please try again later.");
+      return {
+        composeExtension: {
+          type: 'message',
+          text: "⚠️ Couldn't create Wrike task. Contact your admin.",
+        },
+      };
     }
   }
+  
 }
 
 const bot = new WrikeBot();
