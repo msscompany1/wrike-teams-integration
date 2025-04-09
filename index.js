@@ -1,3 +1,4 @@
+// ✅ Load environment variables
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -7,26 +8,25 @@ const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbu
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
-// ✅ Setup Port
-const PORT = process.env.PORT || 3978;
+// ✅ Dynamic port for Railway / Local\const PORT = process.env.PORT || 3978;
 
-// ✅ Setup Restify Server
+// ✅ Create HTTP server
 const server = restify.createServer();
 server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
 });
 
-// ✅ Bot Adapter
+// ✅ Bot Framework Adapter
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
 });
 
-// ✅ State Storage
+// ✅ Memory state
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
-// ✅ MSAL Config
+// ✅ MSAL config for Azure AD client credentials
 const msalConfig = {
   auth: {
     clientId: process.env.MICROSOFT_APP_ID,
@@ -37,11 +37,10 @@ const msalConfig = {
 
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 
-// ✅ Teams Bot Logic
+// ✅ Teams bot logic
 class WrikeBot extends TeamsActivityHandler {
-  async handleTeamsMessagingExtensionFetchTask(context) {
+  async handleTeamsMessagingExtensionFetchTask(context, action) {
     const messageText = context.activity.messagePayload?.body?.content || '';
-
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
@@ -67,19 +66,17 @@ class WrikeBot extends TeamsActivityHandler {
       console.log("🟡 Action data:", JSON.stringify(action, null, 2));
 
       const { title, dueDate, assignee } = action.data;
-      if (!title) throw new Error("Title is required");
+      if (!title) throw new Error("Missing required field: title");
 
-      // ✅ Acquire MS Graph Token
+      // ✅ Acquire Microsoft Graph Token (not used yet, but acquired)
       const tokenResponse = await cca.acquireTokenByClientCredential({
         scopes: ["https://graph.microsoft.com/.default"],
       });
+      console.log("🟢 MS Graph Token acquired:", tokenResponse.accessToken ? "✅" : "❌");
 
-      console.log("🟢 MS Graph Token acquired:", !!tokenResponse.accessToken);
-
-      // ✅ Create Wrike Task
+      // ✅ Send task to Wrike
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
-      const response = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
         },
@@ -89,23 +86,24 @@ class WrikeBot extends TeamsActivityHandler {
         },
       });
 
-      const wrikeTask = response.data.data[0];
-      const wrikeUrl = wrikeTask.permalink;
+      console.log("✅ Wrike Task Created:", wrikeResponse.data.data[0].permalink);
 
-      console.log("🟢 Wrike Task Created:", wrikeUrl);
-
-      await context.sendActivity(`✅ Task created in Wrike: [${title}](${wrikeUrl})`);
+      // ✅ Return a proper Teams card response
       return {
-        composeExtension: {
-          type: 'result',
-          attachmentLayout: 'list',
-          attachments: [],
-        },
+        task: {
+          type: "message",
+          value: `✅ Task created in Wrike: [${title}](${wrikeResponse.data.data[0].permalink})`
+        }
       };
+
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
-      await context.sendActivity("⚠️ Failed to create task. Try again later.");
-      throw error;
+      return {
+        task: {
+          type: "message",
+          value: `⚠️ Failed to create task: ${error.message}`
+        }
+      };
     }
   }
 }
@@ -119,38 +117,38 @@ server.post('/api/messages', async (req, res) => {
   });
 });
 
-// ✅ Basic GET endpoint
+// ✅ GET test route
 server.get('/', (req, res, next) => {
   res.send(200, '✔️ Railway bot is running!');
   return next();
 });
 
-// ✅ Wrike OAuth Callback (Fixed!)
-server.get('/auth/callback', (req, res, next) => {
+// ✅ Wrike OAuth callback
+server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
   if (!code) {
-    res.send(400, 'Missing authorization code');
-    return next();
+    res.send(400, 'Missing code from Wrike');
+    return;
   }
 
-  axios.post('https://login.wrike.com/oauth2/token', null, {
-    params: {
-      client_id: process.env.WRIKE_CLIENT_ID,
-      client_secret: process.env.WRIKE_CLIENT_SECRET,
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: process.env.WRIKE_REDIRECT_URI,
-    },
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  }).then(response => {
+  try {
+    const response = await axios.post('https://login.wrike.com/oauth2/token', null, {
+      params: {
+        client_id: process.env.WRIKE_CLIENT_ID,
+        client_secret: process.env.WRIKE_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.WRIKE_REDIRECT_URI,
+      },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
     console.log("🟢 Wrike Access Token:", response.data.access_token);
-    res.send(200, '✅ Wrike OAuth success. You may close this window.');
-    return next();
-  }).catch(error => {
-    console.error("❌ Wrike OAuth error:", error?.response?.data || error.message);
-    res.send(500, '⚠️ Wrike OAuth failed.');
-    return next();
-  });
+    res.send(200, "✅ Wrike authorization successful. You can close this.");
+  } catch (error) {
+    console.error("❌ Wrike OAuth Error:", error?.response?.data || error.message);
+    res.send(500, "⚠️ Failed to authorize with Wrike.");
+  }
 });
