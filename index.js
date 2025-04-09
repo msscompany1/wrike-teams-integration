@@ -2,6 +2,7 @@ require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
@@ -68,15 +69,29 @@ class WrikeBot extends TeamsActivityHandler {
       const { title, dueDate, assignee } = action.data;
       if (!title) throw new Error("Missing required field: title");
 
-      // ✅ Acquire token using client credentials
+      // ✅ Acquire Microsoft token (optional)
       const tokenResponse = await cca.acquireTokenByClientCredential({
         scopes: ["https://graph.microsoft.com/.default"],
       });
-
       console.log("🟢 Token acquired:", tokenResponse.accessToken ? "✅" : "❌");
 
-      // Here you could call Wrike API with the token if needed
+      // ✅ Call Wrike API using client credentials
+      const wrikeToken = await getWrikeAccessToken();
+      const wrikeResponse = await axios.post(
+        'https://www.wrike.com/api/v4/tasks',
+        {
+          title: title,
+          dueDate: dueDate
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${wrikeToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
+      console.log("🟢 Wrike task created:", wrikeResponse.data);
       const responseText = `✅ Task created: ${title} (Due: ${dueDate}) Assigned to: ${assignee}`;
       await context.sendActivity(responseText);
 
@@ -88,12 +103,31 @@ class WrikeBot extends TeamsActivityHandler {
         },
       };
     } catch (error) {
-      console.error("❌ Error in submitAction:", error.message);
+      console.error("❌ Error in submitAction:", error);
       await context.sendActivity("⚠️ Failed to create task. Try again later.");
-      throw error; // this triggers the red "Unable to reach app"
+      throw error;
     }
   }
 }
+
+// ✅ Get Wrike Access Token
+async function getWrikeAccessToken() {
+  const response = await axios.post('https://login.wrike.com/oauth2/token', null, {
+    params: {
+      grant_type: 'client_credentials',
+      client_id: process.env.WRIKE_CLIENT_ID,
+      client_secret: process.env.WRIKE_CLIENT_SECRET,
+    },
+  });
+
+  return response.data.access_token;
+}
+
+// ✅ Handle Wrike OAuth redirect (for future support if needed)
+server.get('/auth/callback', (req, res, next) => {
+  res.send(200, '✅ Wrike OAuth callback received. You can close this tab.');
+  return next();
+});
 
 const bot = new WrikeBot();
 
