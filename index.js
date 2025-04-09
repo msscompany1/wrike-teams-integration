@@ -124,11 +124,11 @@ server.get('/', (req, res, next) => {
 });
 
 // ✅ Wrike OAuth callback
-server.get('/auth/callback', async (req, res, next) => {
+server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
   if (!code) {
     res.send(400, 'Missing code from Wrike');
-    return next();
+    return;
   }
 
   try {
@@ -151,6 +151,5 @@ server.get('/auth/callback', async (req, res, next) => {
     console.error("❌ Wrike OAuth Error:", error?.response?.data || error.message);
     res.send(500, "⚠️ Failed to authorize with Wrike.");
   }
-
-  return next();
 });
+
