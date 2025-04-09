@@ -79,16 +79,22 @@ class WrikeBot extends TeamsActivityHandler {
       // ✅ Send task to Wrike using saved WRIKE_ACCESS_TOKEN
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
 
-      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
-        headers: {
-          Authorization: `Bearer ${wrikeToken}`,
-        },
-        params: {
+      const wrikeResponse = await axios.post(
+        'https://www.wrike.com/api/v4/tasks',
+        {
           title,
-          dueDate,
           importance: 'High',
+          dates: {
+            due: dueDate,
+          }
         },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${wrikeToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       console.log("🟢 Wrike API Response:", wrikeResponse.data);
 
@@ -152,4 +158,3 @@ server.get('/auth/callback', async (req, res) => {
     res.send(500, "⚠️ Failed to authorize with Wrike.");
   }
 });
-
