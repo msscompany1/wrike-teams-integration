@@ -8,7 +8,8 @@ const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbu
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
-// ✅ Dynamic port for Railway / Local\const PORT = process.env.PORT || 3978;
+// ✅ Dynamic port for Railway / Local
+const PORT = process.env.PORT || 3978;
 
 // ✅ Create HTTP server
 const server = restify.createServer();
