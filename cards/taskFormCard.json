@@ -1,7 +1,5 @@
 {
-  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
-  "version": "1.5",
   "body": [
     {
       "type": "TextBlock",
@@ -12,28 +10,28 @@
     {
       "type": "Input.Text",
       "id": "title",
-      "label": "Task Title",
       "placeholder": "Enter task title",
+      "label": "Task Title",
       "isRequired": true,
-      "errorMessage": "Task title is required"
+      "errorMessage": "Title is required"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "location",
-      "label": "Location (Folder/Project)",
+      "label": "Select Location",
       "style": "compact",
       "choices": [
         {
-          "title": "\ud83d\udcc1 Project A",
-          "value": "projectA_id"
+          "title": "Dev Team Space > Project A > Folder X",
+          "value": "folderId1"
         },
         {
-          "title": "\ud83d\udcc2 Folder B",
-          "value": "folderB_id"
+          "title": "Dev Team Space > Project B",
+          "value": "folderId2"
         },
         {
-          "title": "\ud83d\uddc2\ufe0f Space C",
-          "value": "spaceC_id"
+          "title": "Marketing > Campaigns > Social Media",
+          "value": "folderId3"
         }
       ]
     },
@@ -44,16 +42,16 @@
       "style": "compact",
       "choices": [
         {
-          "title": "Aya Ismail",
-          "value": "KUANA4JJ"
+          "title": "Mariam - msoboh@kashida-learning.com",
+          "value": "KUAUB5XQ"
         },
         {
-          "title": "Harout Mardirossian",
-          "value": "KUANAXMY"
-        },
-        {
-          "title": "Hassan Mourad",
+          "title": "Hassan Mourad - hmourad@kashida-learning.com",
           "value": "KUABKRP7"
+        },
+        {
+          "title": "Amine Khayat - akhayat@kashida-learning.com",
+          "value": "KUANBV2U"
         }
       ]
     },
@@ -70,7 +68,7 @@
     {
       "type": "Input.ChoiceSet",
       "id": "status",
-      "label": "Task Status",
+      "label": "Status",
       "style": "compact",
       "choices": [
         {
@@ -96,5 +94,7 @@
         "commandId": "create-wrike-task"
       }
     }
-  ]
+  ],
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4"
 }
