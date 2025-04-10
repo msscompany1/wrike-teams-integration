@@ -105,8 +105,8 @@ class WrikeBot extends TeamsActivityHandler {
             title,
             status,
             importance: 'High',
-            responsibles: [assignee],
-            parents: [location],
+            responsibles: assignee,
+            parents: location,
             'dates[start]': startDate,
             'dates[due]': dueDate,
           }
