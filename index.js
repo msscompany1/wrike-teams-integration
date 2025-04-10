@@ -97,23 +97,21 @@ class WrikeBot extends TeamsActivityHandler {
       if (!title) throw new Error("Missing required field: title");
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-       const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
-        title,
-        status,
-        importance: 'High',
-        dates: {
-          start: startDate,
-          due: dueDate
-        },
-        responsibleIds: [assignee],
-        parents: [location]
-      }, {
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
-          'Content-Type': 'application/json'
+        },
+        params: {
+          title,
+          status,
+          importance: 'High',
+          startDate,
+          dueDate,
+          responsibles: [assignee],
+          parents: [location]
         }
       });
-
+      
       const taskLink = wrikeResponse.data.data[0].permalink;
       console.log("✅ Wrike Task Created:", taskLink);
 
