@@ -1,38 +1,100 @@
 {
-    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-    "type": "AdaptiveCard",
-    "version": "1.4",
-    "body": [
-      {
-        "type": "TextBlock",
-        "text": "Create Wrike Task",
-        "weight": "Bolder",
-        "size": "Medium"
-      },
-      {
-        "type": "Input.Text",
-        "id": "title",
-        "placeholder": "Enter task title",
-        "isRequired": true,
-        "label": "Task Title"
-      },
-      {
-        "type": "Input.Text",
-        "id": "assignee",
-        "placeholder": "Enter assignee email",
-        "label": "Assign To"
-      },
-      {
-        "type": "Input.Date",
-        "id": "dueDate",
-        "label": "Due Date"
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Create Wrike Task",
+      "weight": "Bolder",
+      "size": "Medium"
+    },
+    {
+      "type": "Input.Text",
+      "id": "title",
+      "label": "Task Title",
+      "placeholder": "Enter task title",
+      "isRequired": true,
+      "errorMessage": "Task title is required"
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "location",
+      "label": "Location (Folder/Project)",
+      "style": "compact",
+      "choices": [
+        {
+          "title": "\ud83d\udcc1 Project A",
+          "value": "projectA_id"
+        },
+        {
+          "title": "\ud83d\udcc2 Folder B",
+          "value": "folderB_id"
+        },
+        {
+          "title": "\ud83d\uddc2\ufe0f Space C",
+          "value": "spaceC_id"
+        }
+      ]
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "assignee",
+      "label": "Assign To",
+      "style": "compact",
+      "choices": [
+        {
+          "title": "Aya Ismail",
+          "value": "KUANA4JJ"
+        },
+        {
+          "title": "Harout Mardirossian",
+          "value": "KUANAXMY"
+        },
+        {
+          "title": "Hassan Mourad",
+          "value": "KUABKRP7"
+        }
+      ]
+    },
+    {
+      "type": "Input.Date",
+      "id": "startDate",
+      "label": "Start Date"
+    },
+    {
+      "type": "Input.Date",
+      "id": "dueDate",
+      "label": "Due Date"
+    },
+    {
+      "type": "Input.ChoiceSet",
+      "id": "status",
+      "label": "Task Status",
+      "style": "compact",
+      "choices": [
+        {
+          "title": "Active",
+          "value": "Active"
+        },
+        {
+          "title": "Planned",
+          "value": "Planned"
+        },
+        {
+          "title": "Completed",
+          "value": "Completed"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Submit",
+      "title": "Create Task",
+      "data": {
+        "commandId": "create-wrike-task"
       }
-    ],
-    "actions": [
-      {
-        "type": "Action.Submit",
-        "title": "Create Task"
-      }
-    ]
-  }
-  
+    }
+  ]
+}
