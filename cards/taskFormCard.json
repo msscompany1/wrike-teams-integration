@@ -1,5 +1,7 @@
 {
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
+  "version": "1.4",
   "body": [
     {
       "type": "TextBlock",
@@ -11,49 +13,37 @@
       "type": "Input.Text",
       "id": "title",
       "placeholder": "Enter task title",
-      "label": "Task Title",
+      "label": "Task Title *",
       "isRequired": true,
-      "errorMessage": "Title is required"
+      "errorMessage": "Task title is required"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "location",
-      "label": "Select Location",
+      "label": "Location (Folder/Project)",
       "style": "compact",
+      "isRequired": true,
       "choices": [
         {
-          "title": "Dev Team Space > Project A > Folder X",
-          "value": "folderId1"
-        },
-        {
-          "title": "Dev Team Space > Project B",
-          "value": "folderId2"
-        },
-        {
-          "title": "Marketing > Campaigns > Social Media",
-          "value": "folderId3"
+          "title": "Loading...",
+          "value": ""
         }
-      ]
+      ],
+      "errorMessage": "Please select a location"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
       "label": "Assign To",
       "style": "compact",
+      "isRequired": true,
       "choices": [
         {
-          "title": "Mariam - msoboh@kashida-learning.com",
-          "value": "KUAUB5XQ"
-        },
-        {
-          "title": "Hassan Mourad - hmourad@kashida-learning.com",
-          "value": "KUABKRP7"
-        },
-        {
-          "title": "Amine Khayat - akhayat@kashida-learning.com",
-          "value": "KUANBV2U"
+          "title": "Loading...",
+          "value": ""
         }
-      ]
+      ],
+      "errorMessage": "Please select an assignee"
     },
     {
       "type": "Input.Date",
@@ -68,8 +58,9 @@
     {
       "type": "Input.ChoiceSet",
       "id": "status",
-      "label": "Status",
+      "label": "Task Status",
       "style": "compact",
+      "value": "Active",
       "choices": [
         {
           "title": "Active",
@@ -94,7 +85,5 @@
         "commandId": "create-wrike-task"
       }
     }
-  ],
-  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-  "version": "1.4"
+  ]
 }
