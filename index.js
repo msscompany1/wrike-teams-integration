@@ -14,26 +14,23 @@ const {
 } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
-// ✅ Dynamic port for Railway / Local
+
 const PORT = process.env.PORT || 3978;
 
-// ✅ Create HTTP server
 const server = restify.createServer();
 server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
 });
 
-// ✅ Bot Framework Adapter
+r
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
 });
 
-// ✅ Memory state
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
-// ✅ MSAL config for Azure AD client credentials
 const msalConfig = {
   auth: {
     clientId: process.env.MICROSOFT_APP_ID,
@@ -44,18 +41,15 @@ const msalConfig = {
 
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 
-// ✅ Teams bot logic
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const messageText = context.activity.messagePayload?.body?.content || '';
+    const messageText = context.activity.messagePayload?.body?.content?.replace(/<[^>]+>/g, '') || '';
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
-    // Autofill title
     const titleField = cardJson.body.find(f => f.id === 'title');
-    if (titleField) titleField.value = messageText.replace(/<[^>]*>?/gm, '');
+    if (titleField) titleField.value = messageText.trim();
 
-    // Add dropdown data for assignees
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
@@ -65,7 +59,7 @@ class WrikeBot extends TeamsActivityHandler {
       }));
     }
 
-    // Add dropdown data for locations
+
     const folders = await this.fetchWrikeFolders();
     const locationDropdown = cardJson.body.find(f => f.id === 'location');
     if (locationDropdown) {
@@ -162,20 +156,20 @@ class WrikeBot extends TeamsActivityHandler {
 
 const bot = new WrikeBot();
 
-// ✅ POST endpoint for Teams
+
 server.post('/api/messages', async (req, res) => {
   await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
   });
 });
 
-// ✅ GET test route
+
 server.get('/', (req, res, next) => {
   res.send(200, '✔️ Railway bot is running!');
   return next();
 });
 
-// ✅ Wrike OAuth callback
+
 server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
   if (!code) {
