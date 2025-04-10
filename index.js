@@ -14,7 +14,6 @@ const {
 } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
-
 const PORT = process.env.PORT || 3978;
 
 const server = restify.createServer();
@@ -22,7 +21,6 @@ server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
 });
 
-r
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
@@ -59,7 +57,6 @@ class WrikeBot extends TeamsActivityHandler {
       }));
     }
 
-
     const folders = await this.fetchWrikeFolders();
     const locationDropdown = cardJson.body.find(f => f.id === 'location');
     if (locationDropdown) {
@@ -91,25 +88,24 @@ class WrikeBot extends TeamsActivityHandler {
       if (!title) throw new Error("Missing required field: title");
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-        const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
-          title,
-          status,
-          importance: 'High',
-          dates: {
-            start: startDate,
-            due: dueDate,
-          },
-          responsibles: [assignee],
-          parents: [location],
-        }, {
-          headers: {
-            Authorization: `Bearer ${wrikeToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-      
-      
-      
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
+        title,
+        status,
+        importance: 'High',
+        dates: {
+          type: "Planned",
+          startDate,
+          dueDate
+        },
+        responsibles: [assignee],
+        parents: [location],
+      }, {
+        headers: {
+          Authorization: `Bearer ${wrikeToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
       const taskLink = wrikeResponse.data.data[0].permalink;
       console.log("✅ Wrike Task Created:", taskLink);
 
@@ -156,19 +152,16 @@ class WrikeBot extends TeamsActivityHandler {
 
 const bot = new WrikeBot();
 
-
 server.post('/api/messages', async (req, res) => {
   await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
   });
 });
 
-
 server.get('/', (req, res, next) => {
   res.send(200, '✔️ Railway bot is running!');
   return next();
 });
-
 
 server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
