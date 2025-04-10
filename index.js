@@ -3,8 +3,15 @@ const restify = require('restify');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
-const { TeamsActivityHandler, CardFactory } = require('botbuilder');
+const {
+  BotFrameworkAdapter,
+  MemoryStorage,
+  ConversationState,
+} = require('botbuilder');
+const {
+  TeamsActivityHandler,
+  CardFactory,
+} = require('botbuilder');
 const msal = require('@azure/msal-node');
 
 const PORT = process.env.PORT || 3978;
@@ -33,29 +40,39 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const messageText = context.activity.messagePayload?.body?.content?.replace(/<[^>]+>/g, '') || '';
+    const rawHtml = context.activity.messagePayload?.body?.content || '';
+    const messageText = rawHtml.replace(/<[^>]+>/g, '').trim();
+
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
     const titleField = cardJson.body.find(f => f.id === 'title');
-    if (titleField) titleField.value = messageText.trim();
+    if (titleField) titleField.value = messageText;
 
-    const users = await this.fetchWrikeUsers();
-    const userDropdown = cardJson.body.find(f => f.id === 'assignee');
-    if (userDropdown) {
-      userDropdown.choices = users.map(user => ({
-        title: `${user.name} (${user.email})`,
-        value: user.id,
-      }));
+    try {
+      const users = await this.fetchWrikeUsers();
+      const userDropdown = cardJson.body.find(f => f.id === 'assignee');
+      if (userDropdown) {
+        userDropdown.choices = users.map(user => ({
+          title: `${user.name}`,
+          value: user.id
+        }));
+      }
+    } catch (e) {
+      console.error("🔴 Failed loading Wrike users:", e.message);
     }
 
-    const folders = await this.fetchWrikeFolders();
-    const locationDropdown = cardJson.body.find(f => f.id === 'location');
-    if (locationDropdown) {
-      locationDropdown.choices = folders.map(folder => ({
-        title: folder.title,
-        value: folder.id,
-      }));
+    try {
+      const folders = await this.fetchWrikeFolders();
+      const locationDropdown = cardJson.body.find(f => f.id === 'location');
+      if (locationDropdown) {
+        locationDropdown.choices = folders.map(f => ({
+          title: f.path,
+          value: f.id
+        }));
+      }
+    } catch (e) {
+      console.error("🔴 Failed loading Wrike folders:", e.message);
     }
 
     return {
@@ -63,7 +80,7 @@ class WrikeBot extends TeamsActivityHandler {
         type: 'continue',
         value: {
           title: 'Create Wrike Task',
-          height: 500,
+          height: 550,
           width: 500,
           card: CardFactory.adaptiveCard(cardJson),
         },
@@ -77,40 +94,48 @@ class WrikeBot extends TeamsActivityHandler {
       console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
 
       const { title, assignee, location, startDate, dueDate, status } = action.data;
-      if (!title) throw new Error("Missing required field: title");
+      if (!title || !assignee || !location) throw new Error("Missing required fields.");
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
+      const taskPayload = {
+        title,
+        importance: 'High',
+        status,
+        responsibles: [assignee],
+        parents: [location],
+        dates: { due: dueDate },
+      };
+      if (startDate) taskPayload.dates.start = startDate;
+
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', taskPayload, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
-        },
-        params: {
-          title,
-          importance: 'High',
-          status,
-          responsibleIds: assignee,
-          dates: dueDate ? JSON.stringify({ due: dueDate }) : undefined,
-          parents: location,
+          'Content-Type': 'application/json',
         },
       });
 
-      const taskLink = wrikeResponse.data.data[0].permalink;
-      console.log("✅ Wrike Task Created:", taskLink);
+      const task = wrikeResponse.data.data[0];
+      const previewCard = CardFactory.heroCard(
+        '✅ Wrike Task Created',
+        `${task.title}`,
+        null,
+        [{ type: 'openUrl', title: 'View Task in Wrike', value: task.permalink }]
+      );
 
       return {
-        task: {
-          type: "message",
-          value: `✅ Task created in Wrike: [${title}](${taskLink})`
-        }
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: [previewCard],
+        },
       };
-
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       return {
         task: {
           type: "message",
-          value: `⚠️ Failed to create task: ${error.message}`
-        }
+          value: `⚠️ Failed to create task: ${error.message}`,
+        },
       };
     }
   }
@@ -122,9 +147,10 @@ class WrikeBot extends TeamsActivityHandler {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
-    return response.data.data
-      .filter(u => !u.deleted && u.type === 'Person')
-      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.profiles[0]?.email }));
+    return response.data.data.filter(u => !u.deleted).map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim(),
+    }));
   }
 
   async fetchWrikeFolders() {
@@ -134,7 +160,11 @@ class WrikeBot extends TeamsActivityHandler {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
-    return response.data.data.map(f => ({ id: f.id, title: `${f.title} (${f.project ? 'Project' : 'Folder'})` }));
+    return response.data.data.map(folder => ({
+      id: folder.id,
+      title: folder.title,
+      path: (folder.project ? '📁 ' : '') + (folder.title || folder.name),
+    }));
   }
 }
 
