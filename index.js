@@ -3,19 +3,11 @@ const restify = require('restify');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const {
-  BotFrameworkAdapter,
-  MemoryStorage,
-  ConversationState,
-} = require('botbuilder');
-const {
-  TeamsActivityHandler,
-  CardFactory,
-} = require('botbuilder');
+const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
+const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
 const PORT = process.env.PORT || 3978;
-
 const server = restify.createServer();
 server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
@@ -52,7 +44,7 @@ class WrikeBot extends TeamsActivityHandler {
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
       userDropdown.choices = users.map(user => ({
-        title: user.name,
+        title: `${user.name} (${user.email})`,
         value: user.id,
       }));
     }
@@ -88,21 +80,17 @@ class WrikeBot extends TeamsActivityHandler {
       if (!title) throw new Error("Missing required field: title");
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
-        title,
-        status,
-        importance: 'High',
-        dates: {
-          type: "Planned",
-          startDate,
-          dueDate
-        },
-        responsibles: [assignee],
-        parents: [location],
-      }, {
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', null, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
-          'Content-Type': 'application/json',
+        },
+        params: {
+          title,
+          importance: 'High',
+          status,
+          responsibleIds: assignee,
+          dates: dueDate ? JSON.stringify({ due: dueDate }) : undefined,
+          parents: location,
         },
       });
 
@@ -135,8 +123,8 @@ class WrikeBot extends TeamsActivityHandler {
       },
     });
     return response.data.data
-      .filter(u => !u.deleted)
-      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+      .filter(u => !u.deleted && u.type === 'Person')
+      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.profiles[0]?.email }));
   }
 
   async fetchWrikeFolders() {
@@ -146,7 +134,7 @@ class WrikeBot extends TeamsActivityHandler {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
-    return response.data.data.map(f => ({ id: f.id, title: f.title }));
+    return response.data.data.map(f => ({ id: f.id, title: `${f.title} (${f.project ? 'Project' : 'Folder'})` }));
   }
 }
 
