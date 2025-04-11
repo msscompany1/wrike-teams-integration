@@ -1,35 +1,49 @@
 {
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
-  "version": "1.5",
+  "version": "1.4",
   "body": [
     {
       "type": "TextBlock",
       "text": "Create Wrike Task",
       "weight": "Bolder",
-      "size": "Large"
+      "size": "Medium"
     },
     {
       "type": "Input.Text",
       "id": "title",
-      "placeholder": "Task title (auto-filled from message)",
+      "placeholder": "Enter task title",
+      "label": "Task Title *",
       "isRequired": true,
-      "label": "Task Title"
+      "errorMessage": "Task title is required"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "location",
       "label": "Location (Folder/Project)",
       "style": "compact",
-      "choices": [],
-      "isRequired": true
+      "isRequired": true,
+      "choices": [
+        {
+          "title": "Loading...",
+          "value": ""
+        }
+      ],
+      "errorMessage": "Please select a location"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
       "label": "Assign To",
       "style": "compact",
-      "choices": [],
-      "isRequired": true
+      "isRequired": true,
+      "choices": [
+        {
+          "title": "Loading...",
+          "value": ""
+        }
+      ],
+      "errorMessage": "Please select an assignee"
     },
     {
       "type": "Input.Date",
@@ -46,15 +60,23 @@
       "id": "status",
       "label": "Task Status",
       "style": "compact",
+      "value": "Active",
       "choices": [
-        { "title": "Active", "value": "Active" },
-        { "title": "Planned", "value": "Planned" },
-        { "title": "Completed", "value": "Completed" }
-      ],
-      "value": "Active"
+        {
+          "title": "Active",
+          "value": "Active"
+        },
+        {
+          "title": "Planned",
+          "value": "Planned"
+        },
+        {
+          "title": "Completed",
+          "value": "Completed"
+        }
+      ]
     }
   ],
-  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "actions": [
     {
       "type": "Action.Submit",
