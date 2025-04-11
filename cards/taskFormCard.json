@@ -1,7 +1,7 @@
 {
   "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
-  "version": "1.4",
+  "version": "1.5",
   "body": [
     {
       "type": "TextBlock",
@@ -12,8 +12,8 @@
     {
       "type": "Input.Text",
       "id": "title",
+      "label": "Task Title",
       "placeholder": "Enter task title",
-      "label": "Task Title *",
       "isRequired": true,
       "errorMessage": "Task title is required"
     },
@@ -22,28 +22,40 @@
       "id": "location",
       "label": "Location (Folder/Project)",
       "style": "compact",
-      "isRequired": true,
       "choices": [
         {
-          "title": "Loading...",
-          "value": ""
+          "title": "\ud83d\udcc1 Project A",
+          "value": "projectA_id"
+        },
+        {
+          "title": "\ud83d\udcc2 Folder B",
+          "value": "folderB_id"
+        },
+        {
+          "title": "\ud83d\uddc2\ufe0f Space C",
+          "value": "spaceC_id"
         }
-      ],
-      "errorMessage": "Please select a location"
+      ]
     },
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
       "label": "Assign To",
       "style": "compact",
-      "isRequired": true,
       "choices": [
         {
-          "title": "Loading...",
-          "value": ""
+          "title": "Aya Ismail",
+          "value": "KUANA4JJ"
+        },
+        {
+          "title": "Harout Mardirossian",
+          "value": "KUANAXMY"
+        },
+        {
+          "title": "Hassan Mourad",
+          "value": "KUABKRP7"
         }
-      ],
-      "errorMessage": "Please select an assignee"
+      ]
     },
     {
       "type": "Input.Date",
@@ -60,7 +72,6 @@
       "id": "status",
       "label": "Task Status",
       "style": "compact",
-      "value": "Active",
       "choices": [
         {
           "title": "Active",
