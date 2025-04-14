@@ -42,12 +42,15 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const messageHtml = context.activity.messagePayload?.body?.content || '';
-    const messageText = messageHtml.replace(/<[^>]+>/g, '').trim();    const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
+    const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
+
+    const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
-    // Autofill description instead of title
     const descriptionField = cardJson.body.find(f => f.id === 'description');
-    if (descriptionField) descriptionField.value = messageText;
+    if (descriptionField) {
+      descriptionField.value = plainTextMessage;
+    }
 
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
@@ -86,28 +89,23 @@ class WrikeBot extends TeamsActivityHandler {
       console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
 
       const { title, description, assignee, location, startDate, dueDate, status } = action.data;
-      if (!title || !assignee || !location || !dueDate) {
-        throw new Error("Missing one or more required fields.");
+      if (!title || !description || !assignee || !location || !status) {
+        throw new Error("Missing one or more required fields");
       }
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-      const taskPayload = {
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
         description,
-        status,
         importance: 'High',
-      };
-
-      if (startDate || dueDate) {
-        taskPayload.dates = {};
-        if (startDate) taskPayload.dates.start = startDate;
-        if (dueDate) taskPayload.dates.due = dueDate;
-      }
-
-      if (assignee) taskPayload.responsibles = [assignee];
-      if (location) taskPayload.parents = [location];
-
-      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', taskPayload, {
+        customStatusId: status,
+        dates: {
+          start: startDate,
+          due: dueDate,
+        },
+        responsibles: [assignee],
+        parents: [location],
+      }, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
           'Content-Type': 'application/json',
@@ -117,42 +115,11 @@ class WrikeBot extends TeamsActivityHandler {
       const taskLink = wrikeResponse.data.data[0].permalink;
       console.log("✅ Wrike Task Created:", taskLink);
 
-      const confirmationCard = {
-        type: "AdaptiveCard",
-        body: [
-          {
-            type: "TextBlock",
-            size: "Large",
-            weight: "Bolder",
-            text: "✅ Task Successfully Created"
-          },
-          {
-            type: "TextBlock",
-            text: `Title: ${title}`,
-            wrap: true
-          },
-          {
-            type: "ActionSet",
-            actions: [
-              {
-                type: "Action.OpenUrl",
-                title: "View Task in Wrike",
-                url: taskLink
-              }
-            ]
-          }
-        ],
-        $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
-        version: "1.5"
-      };
-
       return {
         task: {
-          type: 'continue',
-          value: {
-            card: CardFactory.adaptiveCard(confirmationCard),
-          },
-        },
+          type: "message",
+          value: `✅ Task created in Wrike: [${title}](${taskLink})`
+        }
       };
 
     } catch (error) {
@@ -160,8 +127,8 @@ class WrikeBot extends TeamsActivityHandler {
       return {
         task: {
           type: "message",
-          value: `⚠️ Failed to create task: ${error.message}`,
-        },
+          value: `⚠️ Failed to create task: ${error.message}`
+        }
       };
     }
   }
