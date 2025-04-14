@@ -1,6 +1,6 @@
 {
-  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "version": "1.4",
   "body": [
     {
@@ -13,42 +13,36 @@
       "type": "Input.Text",
       "id": "title",
       "placeholder": "Enter task title",
+      "label": "Title",
       "isRequired": true,
-      "label": "Task Title",
       "errorMessage": "Title is required"
     },
     {
       "type": "Input.Text",
       "id": "description",
-      "placeholder": "Autofilled from message",
-      "label": "Task Description",
-      "isMultiline": true
+      "placeholder": "Enter task description",
+      "label": "Description",
+      "isMultiline": true,
+      "isRequired": true,
+      "errorMessage": "Description is required"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "location",
+      "label": "Location (Project/Folder)",
       "style": "compact",
-      "isMultiSelect": false,
-      "label": "Location (Wrike Project/Folder)",
-      "choices": [
-        {
-          "title": "Loading...",
-          "value": "loading"
-        }
-      ]
+      "choices": [],
+      "isRequired": true,
+      "errorMessage": "Please select a location"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
-      "style": "compact",
-      "isMultiSelect": false,
       "label": "Assignee",
-      "choices": [
-        {
-          "title": "Loading...",
-          "value": "loading"
-        }
-      ]
+      "style": "compact",
+      "choices": [],
+      "isRequired": true,
+      "errorMessage": "Please select an assignee"
     },
     {
       "type": "Input.Date",
@@ -63,8 +57,8 @@
     {
       "type": "Input.ChoiceSet",
       "id": "status",
-      "label": "Task Status",
-      "style": "compact",
+      "label": "Status",
+      "style": "expanded",
       "choices": [
         {
           "title": "Active",
@@ -78,13 +72,18 @@
           "title": "Completed",
           "value": "Completed"
         }
-      ]
+      ],
+      "isRequired": true,
+      "errorMessage": "Status is required"
     }
   ],
   "actions": [
     {
       "type": "Action.Submit",
-      "title": "Create Task"
+      "title": "Create Task",
+      "data": {
+        "commandId": "create-wrike-task"
+      }
     }
   ]
 }
