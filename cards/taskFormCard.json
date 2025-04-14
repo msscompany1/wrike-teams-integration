@@ -1,59 +1,52 @@
 {
   "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
   "type": "AdaptiveCard",
-  "version": "1.5",
+  "version": "1.4",
   "body": [
     {
       "type": "TextBlock",
-      "text": "Create Wrike Task",
+      "text": "Create a Wrike Task",
       "weight": "Bolder",
-      "size": "Medium"
+      "size": "Large"
     },
     {
       "type": "Input.Text",
       "id": "title",
-      "label": "Task Title",
       "placeholder": "Enter task title",
       "isRequired": true,
-      "errorMessage": "Task title is required"
+      "label": "Task Title",
+      "errorMessage": "Title is required"
+    },
+    {
+      "type": "Input.Text",
+      "id": "description",
+      "placeholder": "Autofilled from message",
+      "label": "Task Description",
+      "isMultiline": true
     },
     {
       "type": "Input.ChoiceSet",
       "id": "location",
-      "label": "Location (Folder/Project)",
       "style": "compact",
+      "isMultiSelect": false,
+      "label": "Location (Wrike Project/Folder)",
       "choices": [
         {
-          "title": "\ud83d\udcc1 Project A",
-          "value": "projectA_id"
-        },
-        {
-          "title": "\ud83d\udcc2 Folder B",
-          "value": "folderB_id"
-        },
-        {
-          "title": "\ud83d\uddc2\ufe0f Space C",
-          "value": "spaceC_id"
+          "title": "Loading...",
+          "value": "loading"
         }
       ]
     },
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
-      "label": "Assign To",
       "style": "compact",
+      "isMultiSelect": false,
+      "label": "Assignee",
       "choices": [
         {
-          "title": "Aya Ismail",
-          "value": "KUANA4JJ"
-        },
-        {
-          "title": "Harout Mardirossian",
-          "value": "KUANAXMY"
-        },
-        {
-          "title": "Hassan Mourad",
-          "value": "KUABKRP7"
+          "title": "Loading...",
+          "value": "loading"
         }
       ]
     },
@@ -91,10 +84,7 @@
   "actions": [
     {
       "type": "Action.Submit",
-      "title": "Create Task",
-      "data": {
-        "commandId": "create-wrike-task"
-      }
+      "title": "Create Task"
     }
   ]
 }
