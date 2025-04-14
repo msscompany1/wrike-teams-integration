@@ -8,19 +8,20 @@ const {
   BotFrameworkAdapter,
   MemoryStorage,
   ConversationState,
-  CardFactory
 } = require('botbuilder');
-const { TeamsActivityHandler } = require('botbuilder');
+const {
+  TeamsActivityHandler,
+  CardFactory,
+} = require('botbuilder');
 const msal = require('@azure/msal-node');
 
-// ✅ Dynamic port
 const PORT = process.env.PORT || 3978;
+
 const server = restify.createServer();
 server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
 });
 
-// ✅ Bot Framework Adapter
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
@@ -36,36 +37,30 @@ const msalConfig = {
     clientSecret: process.env.MICROSOFT_APP_PASSWORD,
   },
 };
+
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
+    const rawMessage = context.activity.messagePayload?.body?.content || '';
+    const description = rawMessage.replace(/<[^>]+>/g, '').trim();
+
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
-    let messageText = '';
-    if (context.activity.messagePayload?.body?.content) {
-      messageText = context.activity.messagePayload.body.content;
-    } else if (context.activity.value?.body?.content) {
-      messageText = context.activity.value.body.content;
-    } else if (context.activity.text) {
-      messageText = context.activity.text;
-    }
-    messageText = messageText.replace(/<[^>]+>/g, '').trim();
-
-    const titleField = cardJson.body.find(f => f.id === 'title');
-    if (titleField) titleField.value = messageText;
+    const descField = cardJson.body.find(f => f.id === 'description');
+    if (descField) descField.value = description;
 
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
       userDropdown.choices = users.map(user => ({
-        title: `${user.name} (${user.email})`,
+        title: user.name,
         value: user.id,
       }));
     }
 
-    const folders = await this.fetchWrikeFolders();
+    const folders = await this.fetchWrikeProjects();
     const locationDropdown = cardJson.body.find(f => f.id === 'location');
     if (locationDropdown) {
       locationDropdown.choices = folders.map(folder => ({
@@ -79,7 +74,7 @@ class WrikeBot extends TeamsActivityHandler {
         type: 'continue',
         value: {
           title: 'Create Wrike Task',
-          height: 500,
+          height: 520,
           width: 500,
           card: CardFactory.adaptiveCard(cardJson),
         },
@@ -92,67 +87,69 @@ class WrikeBot extends TeamsActivityHandler {
       console.log("🔁 SubmitAction received");
       console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
 
-      const { title, assignee, location, startDate, dueDate, status } = action.data;
-      if (!title) throw new Error("Missing required field: title");
+      const { title, description, assignee, location, startDate, dueDate, status } = action.data;
+      if (!title || !description) throw new Error("Missing title or description");
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
+      const payload = {
         title,
-        status,
+        description,
         importance: 'High',
-        dates: {
-          start: startDate,
-          due: dueDate,
-        },
-        responsibles: [assignee],
-        parents: [location],
-      }, {
+        status,
+      };
+
+      if (startDate || dueDate) {
+        payload.dates = {};
+        if (startDate) payload.dates.start = startDate;
+        if (dueDate) payload.dates.due = dueDate;
+      }
+
+      if (assignee) payload.responsibles = [assignee];
+      if (location) payload.parents = [location];
+
+      const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', payload, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
           'Content-Type': 'application/json',
         },
       });
-      
 
       const task = wrikeResponse.data.data[0];
-      const taskLink = task.permalink;
-      console.log("✅ Wrike Task Created:", taskLink);
-
-      const confirmationCard = CardFactory.adaptiveCard({
-        type: "AdaptiveCard",
-        version: "1.5",
-        body: [
-          { type: "TextBlock", text: "✅ Wrike Task Created", weight: "Bolder", size: "Medium", color: "Good" },
-          { type: "TextBlock", text: title, wrap: true },
-          {
-            type: "ActionSet",
-            actions: [
-              {
-                type: "Action.OpenUrl",
-                title: "View Task in Wrike",
-                url: taskLink,
-              },
-            ],
-          },
-        ],
-      });
+      console.log("✅ Wrike Task Created:", task.permalink);
 
       return {
         task: {
-          type: 'continue',
+          type: "continue",
           value: {
-            title: 'Wrike Task Created',
-            card: confirmationCard
-          },
-        },
+            title: "Task Created",
+            height: 150,
+            width: 400,
+            card: CardFactory.adaptiveCard({
+              type: "AdaptiveCard",
+              version: "1.4",
+              body: [
+                { type: "TextBlock", size: "Medium", weight: "Bolder", text: "✅ Task Created Successfully!" },
+                { type: "TextBlock", wrap: true, text: task.title },
+              ],
+              actions: [
+                {
+                  type: "Action.OpenUrl",
+                  title: "View Task in Wrike",
+                  url: task.permalink
+                }
+              ]
+            })
+          }
+        }
       };
+
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       return {
         task: {
           type: "message",
-          value: `⚠️ Failed to create task: ${error.message}`,
-        },
+          value: `⚠️ Failed to create task: ${error.message}`
+        }
       };
     }
   }
@@ -160,27 +157,24 @@ class WrikeBot extends TeamsActivityHandler {
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
     const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
-      headers: {
-        Authorization: `Bearer ${wrikeToken}`,
-      },
+      headers: { Authorization: `Bearer ${wrikeToken}` },
     });
     return response.data.data
       .filter(u => !u.deleted)
-      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.profiles?.[0]?.email || '' }));
+      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
   }
 
-  async fetchWrikeFolders() {
+  async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-    const response = await axios.get('https://www.wrike.com/api/v4/folders', {
-      headers: {
-        Authorization: `Bearer ${wrikeToken}`,
-      },
+    const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
+      headers: { Authorization: `Bearer ${wrikeToken}` },
     });
-    return response.data.data.map(f => ({ id: f.id, title: f.title }));
+    return response.data.data.map(p => ({ id: p.id, title: p.title }));
   }
 }
 
 const bot = new WrikeBot();
+
 server.post('/api/messages', async (req, res) => {
   await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
