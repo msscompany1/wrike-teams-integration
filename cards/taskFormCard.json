@@ -1,28 +1,22 @@
 {
-  "type": "AdaptiveCard",
   "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-  "version": "1.4",
+  "type": "AdaptiveCard",
+  "version": "1.5",
   "body": [
-    {
-      "type": "TextBlock",
-      "text": "Create a Wrike Task",
-      "weight": "Bolder",
-      "size": "Large"
-    },
     {
       "type": "Input.Text",
       "id": "title",
+      "label": "Task Title",
       "placeholder": "Enter task title",
-      "label": "Title",
       "isRequired": true,
       "errorMessage": "Title is required"
     },
     {
       "type": "Input.Text",
       "id": "description",
-      "placeholder": "Enter task description",
-      "label": "Description",
+      "label": "Task Description",
       "isMultiline": true,
+      "placeholder": "Enter task details",
       "isRequired": true,
       "errorMessage": "Description is required"
     },
@@ -47,18 +41,22 @@
     {
       "type": "Input.Date",
       "id": "startDate",
-      "label": "Start Date"
+      "label": "Start Date",
+      "isRequired": true,
+      "errorMessage": "Start date is required"
     },
     {
       "type": "Input.Date",
       "id": "dueDate",
-      "label": "Due Date"
+      "label": "Due Date",
+      "isRequired": true,
+      "errorMessage": "Due date is required"
     },
     {
       "type": "Input.ChoiceSet",
       "id": "status",
-      "label": "Status",
-      "style": "expanded",
+      "label": "Task Status",
+      "style": "compact",
       "choices": [
         {
           "title": "Active",
@@ -74,7 +72,7 @@
         }
       ],
       "isRequired": true,
-      "errorMessage": "Status is required"
+      "errorMessage": "Please select a status"
     }
   ],
   "actions": [
