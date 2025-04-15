@@ -1,4 +1,3 @@
-// ✅ index.js (fixed for async/restify deployment)
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -32,15 +31,24 @@ class WrikeBot extends TeamsActivityHandler {
 
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
-    if (userDropdown) userDropdown.choices = users.map(u => ({ title: u.name, value: u.id }));
+    if (userDropdown) userDropdown.choices = users.map(u => ({
+      title: u.name,
+      value: u.id
+    }));
 
     const folders = await this.fetchWrikeProjects();
     const locationDropdown = cardJson.body.find(f => f.id === 'location');
-    if (locationDropdown) locationDropdown.choices = folders.map(f => ({ title: f.title, value: f.id }));
+    if (locationDropdown) locationDropdown.choices = folders.map(f => ({
+      title: f.title,
+      value: f.id
+    }));
 
     const statuses = await this.fetchWrikeCustomStatuses();
     const statusDropdown = cardJson.body.find(f => f.id === 'status');
-    if (statusDropdown) statusDropdown.choices = statuses.map(s => ({ title: s.name, value: s.id }));
+    if (statusDropdown) statusDropdown.choices = statuses.map(s => ({
+      title: s.name,
+      value: s.id
+    }));
 
     return {
       task: {
@@ -65,13 +73,12 @@ class WrikeBot extends TeamsActivityHandler {
         title,
         description,
         importance: 'High',
-        dates: {
-          start: startDate,
-          due: dueDate
-        },
-        parents: [location],
-        responsibles: [assignee],
-        customStatusId: status
+        customStatusId: status,
+        ...(startDate || dueDate ? { dates: {} } : {}),
+        ...(startDate ? { dates: { ...taskPayload.dates, start: startDate } } : {}),
+        ...(dueDate ? { dates: { ...taskPayload.dates, due: dueDate } } : {}),
+        ...(assignee ? { responsibles: [assignee] } : {}),
+        ...(location ? { parents: [location] } : {}),
       };
 
       const response = await axios.post('https://www.wrike.com/api/v4/tasks', taskPayload, {
@@ -81,11 +88,40 @@ class WrikeBot extends TeamsActivityHandler {
         }
       });
 
-      const link = response.data.data[0].permalink;
+      const task = response.data.data[0];
+      const link = task.permalink;
+
       return {
         task: {
-          type: 'message',
-          value: `✅ Task created: [${title}](${link})`
+          type: 'continue',
+          value: {
+            card: CardFactory.adaptiveCard({
+              type: "AdaptiveCard",
+              body: [
+                {
+                  type: "TextBlock",
+                  size: "Large",
+                  weight: "Bolder",
+                  text: "✅ Wrike Task Created",
+                  wrap: true
+                },
+                {
+                  type: "TextBlock",
+                  text: `**${task.title}** has been created successfully.`,
+                  wrap: true
+                }
+              ],
+              actions: [
+                {
+                  type: "Action.OpenUrl",
+                  title: "🔗 View in Wrike",
+                  url: link
+                }
+              ],
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              version: "1.5"
+            }),
+          }
         }
       };
     } catch (err) {
@@ -104,7 +140,10 @@ class WrikeBot extends TeamsActivityHandler {
     const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
       headers: { Authorization: `Bearer ${wrikeToken}` }
     });
-    return res.data.data.filter(u => !u.deleted).map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}` }));
+    return res.data.data.filter(u => !u.deleted).map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`
+    }));
   }
 
   async fetchWrikeProjects() {
@@ -125,24 +164,21 @@ class WrikeBot extends TeamsActivityHandler {
 }
 
 const bot = new WrikeBot();
-server.post('/api/messages', function (req, res, next) {
-  adapter.processActivity(req, res, async (context) => {
+
+server.post('/api/messages', async (req, res) => {
+  await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
   });
-  return next();
 });
 
-server.get('/', function (req, res, next) {
+server.get('/', (req, res, next) => {
   res.send(200, '✔️ Railway bot is running!');
   return next();
 });
 
-server.get('/auth/callback', async function (req, res, next) {
+server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
-  if (!code) {
-    res.send(400, 'Missing code from Wrike');
-    return next();
-  }
+  if (!code) return res.send(400, 'Missing code from Wrike');
 
   try {
     const result = await axios.post('https://login.wrike.com/oauth2/token', null, {
@@ -158,10 +194,8 @@ server.get('/auth/callback', async function (req, res, next) {
 
     console.log("🟢 Wrike Access Token:", result.data.access_token);
     res.send(200, '✅ Authorization successful. You may close this window.');
-    return next();
   } catch (error) {
     console.error("❌ Wrike OAuth Error:", error.response?.data || error.message);
     res.send(500, '❌ Authorization failed.');
-    return next();
   }
 });
