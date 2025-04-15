@@ -1,4 +1,4 @@
-// ✅ index.js (updated for customStatusId handling)
+// ✅ index.js (fixed for async/restify deployment)
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -125,16 +125,24 @@ class WrikeBot extends TeamsActivityHandler {
 }
 
 const bot = new WrikeBot();
-server.post('/api/messages', (req, res) => adapter.processActivity(req, res, context => bot.run(context)));
+server.post('/api/messages', function (req, res, next) {
+  adapter.processActivity(req, res, async (context) => {
+    await bot.run(context);
+  });
+  return next();
+});
 
-server.get('/', (req, res, next) => {
+server.get('/', function (req, res, next) {
   res.send(200, '✔️ Railway bot is running!');
   return next();
 });
 
-server.get('/auth/callback', async (req, res) => {
+server.get('/auth/callback', async function (req, res, next) {
   const code = req.query.code;
-  if (!code) return res.send(400, 'Missing code from Wrike');
+  if (!code) {
+    res.send(400, 'Missing code from Wrike');
+    return next();
+  }
 
   try {
     const result = await axios.post('https://login.wrike.com/oauth2/token', null, {
@@ -150,8 +158,10 @@ server.get('/auth/callback', async (req, res) => {
 
     console.log("🟢 Wrike Access Token:", result.data.access_token);
     res.send(200, '✅ Authorization successful. You may close this window.');
+    return next();
   } catch (error) {
     console.error("❌ Wrike OAuth Error:", error.response?.data || error.message);
     res.send(500, '❌ Authorization failed.');
+    return next();
   }
 });
