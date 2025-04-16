@@ -161,23 +161,11 @@ class WrikeBot extends TeamsActivityHandler {
                 columns: [
                   {
                     type: 'Column',
-                    width: 'auto',
-                    items: [
-                      {
-                        type: 'Image',
-                        url: assigneeAvatar,
-                        size: 'Small',
-                        style: 'Person'
-                      }
-                    ]
-                  },
-                  {
-                    type: 'Column',
                     width: 'stretch',
                     items: [
                       {
                         type: 'TextBlock',
-                        text: `**Assignee:** ${assigneeName}`,
+                        text: `👤 **Assignee:** ${assigneeName}`,
                         wrap: true
                       },
                       {
