@@ -115,53 +115,87 @@ class WrikeBot extends TeamsActivityHandler {
       const taskLink = wrikeResponse.data.data[0].permalink;
       console.log("✅ Wrike Task Created:", taskLink);
 
-      return {
-        task: {
-          type: 'continue',
-          value: {
-            card: CardFactory.adaptiveCard({
-              type: 'AdaptiveCard',
-              version: '1.5',
-              body: [
-                {
-                  type: 'TextBlock',
-                  text: '✅ Task successfully created in Wrike!',
-                  weight: 'Bolder',
-                  size: 'Medium',
-                  color: 'Good',
-                  wrap: true
-                },
-                {
-                  type: 'TextBlock',
-                  text: `**Title:** ${title}`,
-                  wrap: true
-                },
-                {
-                  type: 'TextBlock',
-                  text: `**Assignee ID:** ${assignee}`,
-                  wrap: true
-                },
-                {
-                  type: 'TextBlock',
-                  text: `**Due Date:** ${dueDate}`,
-                  wrap: true
-                }
-              ],
-              actions: [
-                {
-                  type: 'Action.OpenUrl',
-                  title: '🔗 View Task in Wrike',
-                  url: taskLink  // uses the actual working https://... link
-                }
-              ]
-            }),
-            title: 'Task Created',
-            height: 250,
-            width: 400
-          }
+      const users = await this.fetchWrikeUsers();
+      const assigneeDetails = users.find(u => u.id === assignee);
+      const assigneeName = assigneeDetails ? assigneeDetails.name : assignee;
+      const assigneeAvatar = assigneeDetails?.photo?.url || 'https://static.wrike.com/favicon.ico';
+
+      const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          card: CardFactory.adaptiveCard({
+            type: 'AdaptiveCard',
+            version: '1.5',
+            body: [
+              {
+                type: 'TextBlock',
+                text: '🎉 Task Created Successfully!',
+                weight: 'Bolder',
+                size: 'Large',
+                color: 'Good',
+                wrap: true
+              },
+              {
+                type: 'TextBlock',
+                text: `**${title}**`,
+                size: 'Medium',
+                wrap: true
+              },
+              {
+                type: 'ColumnSet',
+                columns: [
+                  {
+                    type: 'Column',
+                    width: 'auto',
+                    items: [
+                      {
+                        type: 'Image',
+                        url: assigneeAvatar,
+                        size: 'Small',
+                        style: 'Person'
+                      }
+                    ]
+                  },
+                  {
+                    type: 'Column',
+                    width: 'stretch',
+                    items: [
+                      {
+                        type: 'TextBlock',
+                        text: `**Assignee:** ${assigneeName}`,
+                        wrap: true
+                      },
+                      {
+                        type: 'TextBlock',
+                        text: `📅 **Due Date:** ${formattedDueDate}`,
+                        wrap: true,
+                        spacing: 'Small'
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            actions: [
+              {
+                type: 'Action.OpenUrl',
+                title: '🔗 View Task in Wrike',
+                url: taskLink
+              }
+            ]
+          }),
+          title: 'Task Created',
+          height: 300,
+          width: 450
         }
-      };
-      
+      }
+    };
+
       
       
     } catch (error) {
