@@ -117,11 +117,52 @@ class WrikeBot extends TeamsActivityHandler {
 
       return {
         task: {
-          type: "message",
-          value: `✅ Task created in Wrike: [${title}](${taskLink})`
+          type: 'continue',
+          value: {
+            card: CardFactory.adaptiveCard({
+              type: 'AdaptiveCard',
+              version: '1.5',
+              body: [
+                {
+                  type: 'TextBlock',
+                  text: '✅ Task successfully created in Wrike!',
+                  weight: 'Bolder',
+                  size: 'Medium',
+                  color: 'Good',
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  text: `**Title:** ${title}`,
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  text: `**Assignee ID:** ${assignee}`,
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  text: `**Due Date:** ${dueDate}`,
+                  wrap: true
+                }
+              ],
+              actions: [
+                {
+                  type: 'Action.OpenUrl',
+                  title: '🔗 View Task in Wrike',
+                  url: `wrike://open?url=${encodeURIComponent(taskLink)}`
+                }
+              ]
+            }),
+            title: 'Task Created',
+            height: 250,
+            width: 400
+          }
         }
       };
-
+      
+      
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       return {
