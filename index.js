@@ -151,7 +151,7 @@ class WrikeBot extends TeamsActivityHandler {
                 {
                   type: 'Action.OpenUrl',
                   title: '🔗 View Task in Wrike',
-                  url: `wrike://open?url=${encodeURIComponent(taskLink)}`
+                  url: taskLink  // uses the actual working https://... link
                 }
               ]
             }),
@@ -161,6 +161,7 @@ class WrikeBot extends TeamsActivityHandler {
           }
         }
       };
+      
       
       
     } catch (error) {
