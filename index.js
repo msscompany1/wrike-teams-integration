@@ -92,13 +92,23 @@ class WrikeBot extends TeamsActivityHandler {
       if (!title || !description || !assignee || !location || !status) {
         throw new Error("Missing one or more required fields");
       }
+      const statusMap = {
+          "Active": "Active",         // valid
+          "Planned": "Deferred",      // mapped to valid Wrike status
+          "Completed": "Completed"    // valid
+      };
+
+     const wrikeStatus = statusMap[status];
+        if (!wrikeStatus) {
+          throw new Error(`Unsupported status: ${status}`);
+     }
 
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
       const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
         description,
         importance: 'High',
-        status: status.toLowerCase(),
+        status: wrikeStatus,
         dates: {
           start: startDate,
           due: dueDate,
