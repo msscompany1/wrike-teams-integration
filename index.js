@@ -98,7 +98,7 @@ class WrikeBot extends TeamsActivityHandler {
         title,
         description,
         importance: 'High',
-        customStatusId: status,
+        status: status.toLowerCase(),
         dates: {
           start: startDate,
           due: dueDate,
