@@ -212,48 +212,24 @@ class WrikeBot extends TeamsActivityHandler {
   
     try {
       const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
-        params: {
-          deleted: false,
-        },
+        params: { deleted: false },
         headers: {
-          Authorization: `Bearer ${wrikeToken}`,
-        },
+          Authorization: `Bearer ${wrikeToken}` },
       });
   
-      const allUsers = response.data.data;
+      const users = response.data.data;
   
-      const filtered = allUsers
-        .filter(u =>
-          !u.deleted &&
-          u.type === 'User' && // ✅ exclude guests/contacts
-          u.profiles && u.profiles.length > 0 &&
-          u.firstName // skip unnamed/bots
-        );
-  
-      // 🔁 Remove duplicates by email
-      const uniqueByEmail = {};
-      filtered.forEach(u => {
-        const email = u.profiles[0]?.email || '';
-        if (email && !uniqueByEmail[email]) {
-          uniqueByEmail[email] = {
-            id: u.id,
-            name: `${u.firstName} ${u.lastName}`.trim() + ` (${email})`
-          };
-        }
-      });
-  
-      const result = Object.values(uniqueByEmail);
-      console.log("✅ Final filtered Wrike users:", result.length);
-      return result;
+      return users.map(u => ({
+        id: u.id,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unnamed'
+      }));
   
     } catch (err) {
       console.error("❌ Error fetching Wrike users:", err.response?.data || err.message);
-      return [{
-        id: 'fallback',
-        name: 'Fallback User'
-      }];
+      return [{ id: 'fallback', name: 'Test User' }];
     }
   }
+  
   
   
   async fetchWrikeProjects() {
