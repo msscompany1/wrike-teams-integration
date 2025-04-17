@@ -1,11 +1,17 @@
-// Updated index.js with Microsoft Graph + Wrike user matching
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
-const { TeamsActivityHandler, CardFactory } = require('botbuilder');
+const {
+  BotFrameworkAdapter,
+  MemoryStorage,
+  ConversationState,
+} = require('botbuilder');
+const {
+  TeamsActivityHandler,
+  CardFactory,
+} = require('botbuilder');
 const msal = require('@azure/msal-node');
 
 const PORT = process.env.PORT || 3978;
@@ -35,74 +41,79 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    try {
-      const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
-      const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
-      const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
-      const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
-
-      const descriptionField = cardJson.body.find(f => f.id === 'description');
-      if (descriptionField) {
-        descriptionField.value = plainTextMessage;
-      }
-
-      const users = await this.fetchWrikeUsers();
-      const userDropdown = cardJson.body.find(f => f.id === 'assignee');
-      if (userDropdown) {
-        userDropdown.choices = users.map(user => ({ title: user.name || 'Unknown', value: user.id }));
-      }
-
-      const folders = await this.fetchWrikeProjects();
-      const locationDropdown = cardJson.body.find(f => f.id === 'location');
-      if (locationDropdown) {
-        locationDropdown.choices = folders.map(folder => ({ title: folder.title, value: folder.id }));
-      }
-
-      return {
-        task: {
-          type: 'continue',
-          value: {
-            title: 'Create Wrike Task',
-            height: 600,
-            width: 600,
-            card: CardFactory.adaptiveCard(cardJson),
-          },
-        },
-      };
-    } catch (err) {
-      console.error("❌ Error in FetchTask:", err?.message || err);
-      return {
-        task: {
-          type: 'message',
-          value: `⚠️ Something went wrong while opening the form: ${err?.message}`,
-        },
-      };
+    const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
+    const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
+    const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
+    const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+  
+    const descriptionField = cardJson.body.find(f => f.id === 'description');
+    if (descriptionField) {
+      descriptionField.value = plainTextMessage;
     }
+    console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
+
+    const users = await this.fetchWrikeUsers();
+    console.log("✅ Wrike Users returned:", users);
+    const userDropdown = cardJson.body.find(f => f.id === 'assignee');
+    if (userDropdown) {
+      userDropdown.choices = users.map(user => ({
+        title: user.name || 'Unknown',
+        value: user.id,
+      }));
+    }
+
+    const folders = await this.fetchWrikeProjects();
+    const locationDropdown = cardJson.body.find(f => f.id === 'location');
+    if (locationDropdown) {
+      locationDropdown.choices = folders.map(folder => ({
+        title: folder.title,
+        value: folder.id,
+      }));
+    }
+
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          title: 'Create Wrike Task',
+          height: 600,
+          width: 600,
+          card: CardFactory.adaptiveCard(cardJson),
+        },
+      },
+    };
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     try {
       console.log("🔁 SubmitAction received");
+      console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
+
       const { title, description, assignee, location, startDate, dueDate, status } = action.data;
       if (!title || !description || !assignee || !location || !status) {
         throw new Error("Missing one or more required fields");
       }
-
       const statusMap = {
-        "Active": "Active",
-        "Planned": "Deferred",
-        "Completed": "Completed",
+          "Active": "Active",         // valid
+          "Planned": "Deferred",      // mapped to valid Wrike status
+          "Completed": "Completed"    // valid
       };
 
-      const wrikeStatus = statusMap[status];
-      const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
+     const wrikeStatus = statusMap[status];
+        if (!wrikeStatus) {
+          throw new Error(`Unsupported status: ${status}`);
+     }
 
+      const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
       const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
         description,
         importance: 'High',
         status: wrikeStatus,
-        dates: { start: startDate, due: dueDate },
+        dates: {
+          start: startDate,
+          due: dueDate,
+        },
         responsibles: [assignee],
         parents: [location],
       }, {
@@ -113,102 +124,120 @@ class WrikeBot extends TeamsActivityHandler {
       });
 
       const taskLink = wrikeResponse.data.data[0].permalink;
+      console.log("✅ Wrike Task Created:", taskLink);
+
       const users = await this.fetchWrikeUsers();
       const assigneeDetails = users.find(u => u.id === assignee);
       const assigneeName = assigneeDetails ? assigneeDetails.name : assignee;
+      const assigneeAvatar = assigneeDetails?.photo?.url || 'https://static.wrike.com/favicon.ico';
 
       const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
       });
 
-      return {
-        task: {
-          type: 'continue',
-          value: {
-            card: CardFactory.adaptiveCard({
-              type: 'AdaptiveCard', version: '1.5',
-              body: [
-                { type: 'TextBlock', text: '🎉 Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
-                { type: 'TextBlock', text: `**${title}**`, size: 'Medium', wrap: true },
-                {
-                  type: 'ColumnSet',
-                  columns: [
-                    {
-                      type: 'Column', width: 'stretch', items: [
-                        { type: 'TextBlock', text: `👤 **Assignee:** ${assigneeName}`, wrap: true },
-                        { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' }
-                      ]
-                    }
-                  ]
-                }
-              ],
-              actions: [
-                { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
-              ]
-            }),
-            title: 'Task Created', height: 300, width: 450
-          }
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          card: CardFactory.adaptiveCard({
+            type: 'AdaptiveCard',
+            version: '1.5',
+            body: [
+              {
+                type: 'TextBlock',
+                text: '🎉 Task Created Successfully!',
+                weight: 'Bolder',
+                size: 'Large',
+                color: 'Good',
+                wrap: true
+              },
+              {
+                type: 'TextBlock',
+                text: `**${title}**`,
+                size: 'Medium',
+                wrap: true
+              },
+              {
+                type: 'ColumnSet',
+                columns: [
+                  {
+                    type: 'Column',
+                    width: 'stretch',
+                    items: [
+                      {
+                        type: 'TextBlock',
+                        text: `👤 **Assignee:** ${assigneeName}`,
+                        wrap: true
+                      },
+                      {
+                        type: 'TextBlock',
+                        text: `📅 **Due Date:** ${formattedDueDate}`,
+                        wrap: true,
+                        spacing: 'Small'
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            actions: [
+              {
+                type: 'Action.OpenUrl',
+                title: '🔗 View Task in Wrike',
+                url: taskLink
+              }
+            ]
+          }),
+          title: 'Task Created',
+          height: 300,
+          width: 450
         }
-      };
+      }
+    };
+
+      
+      
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       return {
-        task: { type: "message", value: `⚠️ Failed to create task: ${error.message}` }
+        task: {
+          type: "message",
+          value: `⚠️ Failed to create task: ${error.message}`
+        }
       };
     }
   }
-
-  async fetchGraphUsers() {
-    try {
-      const tokenResponse = await cca.acquireTokenByClientCredential({
-        scopes: ['https://graph.microsoft.com/.default']
-      });
-
-      const accessToken = tokenResponse.accessToken;
-      const response = await axios.get('https://graph.microsoft.com/v1.0/users?$select=displayName,mail,userPrincipalName', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      return response.data.value;
-    } catch (err) {
-      console.error("❌ Graph API error:", err?.response?.data || err.message);
-      return [];
-    }
-  }
-
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
+  
     try {
-      const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
         params: { deleted: false },
-        headers: { Authorization: `Bearer ${wrikeToken}` },
+        headers: {
+          Authorization: `Bearer ${wrikeToken}` },
       });
-
-      const wrikeUsers = wrikeResponse.data.data;
-      const graphUsers = await this.fetchGraphUsers();
-
-      const matched = wrikeUsers.filter(w => {
-        const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
-        return wrikeEmail && graphUsers.some(g =>
-          (g.mail || g.userPrincipalName)?.toLowerCase() === wrikeEmail
-        );
-      }).map(w => ({
-        id: w.id,
-        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+  
+      const users = response.data.data;
+  
+      return users.map(u => ({
+        id: u.id,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unnamed'
       }));
-
-      return matched;
+  
     } catch (err) {
-      console.error("❌ Wrike+Graph match error:", err?.response?.data || err.message);
-      return [{ id: 'fallback', name: 'Fallback User' }];
+      console.error("❌ Error fetching Wrike users:", err.response?.data || err.message);
+      return [{ id: 'fallback', name: 'Test User' }];
     }
   }
-
+  
+  
+  
   async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
     const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
-      headers: { Authorization: `Bearer ${wrikeToken}` },
+      headers: {
+        Authorization: `Bearer ${wrikeToken}`,
+      },
     });
     return response.data.data.map(f => ({ id: f.id, title: f.title }));
   }
@@ -229,7 +258,10 @@ server.get('/', (req, res, next) => {
 
 server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send(400, 'Missing code from Wrike');
+  if (!code) {
+    res.send(400, 'Missing code from Wrike');
+    return;
+  }
 
   try {
     const response = await axios.post('https://login.wrike.com/oauth2/token', null, {
@@ -240,7 +272,9 @@ server.get('/auth/callback', async (req, res) => {
         code,
         redirect_uri: process.env.WRIKE_REDIRECT_URI,
       },
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     });
 
     console.log("🟢 Wrike Access Token:", response.data.access_token);
