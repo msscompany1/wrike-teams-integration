@@ -223,9 +223,10 @@ class WrikeBot extends TeamsActivityHandler {
       let users = response.data.data
         .filter(u =>
           !u.deleted &&
-          u.type === 'User' &&
-          u.profiles && u.profiles.length > 0
+          (u.type === 'User' || u.type === 'Contact') &&  // allow contacts too
+          u.firstName                                      // has name
         )
+      
         .map(u => ({
           id: u.id,
           name: `${u.firstName} ${u.lastName}`.trim() || 'Unnamed User',
