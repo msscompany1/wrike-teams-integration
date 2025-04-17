@@ -210,19 +210,28 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
+  
     const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      params: {
+        deleted: false,
+        fields: ['metadata', 'workScheduleId', 'currentBillRate', 'currentCostRate', 'jobRoleId']
+      },
       headers: {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
   
-    return response.data.data
-      .filter(u => !u.deleted)  // ✅ Only filter out deleted users
-      .map(u => ({
-        id: u.id,
-        name: `${u.firstName} ${u.lastName}`.trim()
-      }));
+    const users = response.data.data;
+  
+    // Log to confirm users are returned
+    console.log("✅ Wrike API returned users:", users.length);
+  
+    return users.map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim()
+    }));
   }
+  
   
   async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
