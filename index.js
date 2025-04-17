@@ -210,48 +210,18 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
+    const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      headers: {
+        Authorization: `Bearer ${wrikeToken}`,
+      },
+    });
   
-    try {
-      const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
-        headers: {
-          Authorization: `Bearer ${wrikeToken}`,
-        },
-      });
-  
-      console.log("🟢 Raw Wrike users response:", response.data.data.length);
-  
-      let users = response.data.data
-        .filter(u =>
-          !u.deleted &&
-          (u.type === 'User' || u.type === 'Contact') &&  // allow contacts too
-          u.firstName                                      // has name
-        )
-      
-        .map(u => ({
-          id: u.id,
-          name: `${u.firstName} ${u.lastName}`.trim() || 'Unnamed User',
-          email: u.profiles?.[0]?.email || '',
-          photo: u?.photo || null
-        }));
-  
-      // ✅ Fallback for testing if none returned
-      if (users.length === 0) {
-        console.warn("⚠️ No real Wrike users returned — injecting test user.");
-        users.push({
-          id: 'test-user-id',
-          name: 'Test User'
-        });
-      }
-  
-      return users;
-  
-    } catch (error) {
-      console.error("❌ Error fetching Wrike users:", error?.response?.data || error.message);
-      return [{
-        id: 'fallback-user-id',
-        name: 'Fallback User'
-      }];
-    }
+    return response.data.data
+      .filter(u => !u.deleted)  // ✅ Only filter out deleted users
+      .map(u => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim()
+      }));
   }
   
   async fetchWrikeProjects() {
