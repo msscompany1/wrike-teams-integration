@@ -41,54 +41,48 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    try {
-      const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
-      const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
+    const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
+    const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
+    const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
+    const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
   
-      const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
-      const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
-  
-      const descriptionField = cardJson.body.find(f => f.id === 'description');
-      if (descriptionField) {
-        descriptionField.value = plainTextMessage;
-      }
-  
-      const users = await this.fetchWrikeUsers();
-      console.log("✅ Wrike users:", users);
-  
-      const assigneeField = cardJson.body.find(f => f.id === 'assignee');
-      if (assigneeField) {
-        assigneeField.choices = users.map(u => ({ title: u.name, value: u.id }));
-      }
-  
-      const folders = await this.fetchWrikeProjects();
-      const locationField = cardJson.body.find(f => f.id === 'location');
-      if (locationField) {
-        locationField.choices = folders.map(f => ({ title: f.title, value: f.id }));
-      }
-  
-      return {
-        task: {
-          type: 'continue',
-          value: {
-            title: 'Create Wrike Task',
-            width: 600,
-            height: 600,
-            card: CardFactory.adaptiveCard(cardJson)
-          }
-        }
-      };
-    } catch (err) {
-      console.error("❌ Error in FetchTask:", err?.message || err);
-      return {
-        task: {
-          type: 'message',
-          value: `⚠️ Something went wrong while opening the form: ${err?.message}`
-        }
-      };
+    const descriptionField = cardJson.body.find(f => f.id === 'description');
+    if (descriptionField) {
+      descriptionField.value = plainTextMessage;
     }
+    console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
+
+    const users = await this.fetchWrikeUsers();
+    console.log("✅ Wrike Users returned:", users);
+    const userDropdown = cardJson.body.find(f => f.id === 'assignee');
+    if (userDropdown) {
+      userDropdown.choices = users.map(user => ({
+        title: user.name || 'Unknown',
+        value: user.id,
+      }));
+    }
+
+    const folders = await this.fetchWrikeProjects();
+    const locationDropdown = cardJson.body.find(f => f.id === 'location');
+    if (locationDropdown) {
+      locationDropdown.choices = folders.map(folder => ({
+        title: folder.title,
+        value: folder.id,
+      }));
+    }
+
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          title: 'Create Wrike Task',
+          height: 600,
+          width: 600,
+          card: CardFactory.adaptiveCard(cardJson),
+        },
+      },
+    };
   }
-  
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     try {
@@ -216,28 +210,19 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-  
     const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
-      params: {
-        deleted: false,
-        fields: ['metadata', 'workScheduleId', 'currentBillRate', 'currentCostRate', 'jobRoleId']
-      },
       headers: {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
   
-    const users = response.data.data;
-  
-    // Log to confirm users are returned
-    console.log("✅ Wrike API returned users:", users.length);
-  
-    return users.map(u => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`.trim()
-    }));
+    return response.data.data
+      .filter(u => !u.deleted)  // ✅ Only filter out deleted users
+      .map(u => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim()
+      }));
   }
-  
   
   async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
