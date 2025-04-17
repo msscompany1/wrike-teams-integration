@@ -214,21 +214,23 @@ class WrikeBot extends TeamsActivityHandler {
         Authorization: `Bearer ${wrikeToken}`,
       },
     });
-    return response.data.data
-    .filter(u =>
-      !u.deleted &&
-      u.type === 'User' &&             
-      u.profile && u.profile.accountId 
-    )
-    .map(u => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`.trim(),
-      email: u.profiles?.[0]?.email || null,
-      photo: u?.photo || null
-    }));
   
+    const rawUsers = response.data.data;
+    console.log("🟡 Raw Wrike Users:", rawUsers.length);
+  
+    return rawUsers
+      .filter(u =>
+        !u.deleted &&
+        u.type === 'User' // Keep only Wrike internal users (skip 'Contact'/'Guest')
+      )
+      .map(u => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim() || 'Unnamed',
+        email: u.profiles?.[0]?.email || '',
+        photo: u?.photo || null
+      }));
   }
-
+  
   async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
     const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
