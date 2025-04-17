@@ -34,7 +34,12 @@
       "id": "assignee",
       "label": "Assignee",
       "style": "compact",
-      "choices": [],
+      "choices": [
+        {
+          "title": "Test User",
+          "value": "test-user-id"
+        }
+      ],
       "isRequired": true,
       "errorMessage": "Please select an assignee"
     },
