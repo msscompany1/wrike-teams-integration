@@ -207,25 +207,54 @@ class WrikeBot extends TeamsActivityHandler {
       };
     }
   }
-
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
+  
     try {
       const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
-        params: { deleted: false },
-        headers: { Authorization: `Bearer ${wrikeToken}` },
+        params: {
+          deleted: false,
+        },
+        headers: {
+          Authorization: `Bearer ${wrikeToken}`,
+        },
       });
   
-      console.log("✅ Users returned:", response.data.data.length);
-      return response.data.data.map(u => ({
-        id: u.id,
-        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unnamed'
-      }));
+      const allUsers = response.data.data;
+  
+      const filtered = allUsers
+        .filter(u =>
+          !u.deleted &&
+          u.type === 'User' && // ✅ exclude guests/contacts
+          u.profiles && u.profiles.length > 0 &&
+          u.firstName // skip unnamed/bots
+        );
+  
+      // 🔁 Remove duplicates by email
+      const uniqueByEmail = {};
+      filtered.forEach(u => {
+        const email = u.profiles[0]?.email || '';
+        if (email && !uniqueByEmail[email]) {
+          uniqueByEmail[email] = {
+            id: u.id,
+            name: `${u.firstName} ${u.lastName}`.trim() + ` (${email})`
+          };
+        }
+      });
+  
+      const result = Object.values(uniqueByEmail);
+      console.log("✅ Final filtered Wrike users:", result.length);
+      return result;
+  
     } catch (err) {
-      console.error("❌ Wrike API (contacts) error:", err.response?.data || err.message);
-      return [];
+      console.error("❌ Error fetching Wrike users:", err.response?.data || err.message);
+      return [{
+        id: 'fallback',
+        name: 'Fallback User'
+      }];
     }
   }
+  
   
   async fetchWrikeProjects() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
