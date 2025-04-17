@@ -43,8 +43,9 @@ class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const messageHtml = context.activity.messagePayload?.body?.content || '';
     const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
-    console.log("🟡 Raw message HTML:", messageHtml);
-    console.log("🟡 Plain text extracted:", plainTextMessage);
+    console.log("🟡 context.activity:", JSON.stringify(context.activity, null, 2));
+    console.log("🟡 full context:", JSON.stringify(context, null, 2));
+
     
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
