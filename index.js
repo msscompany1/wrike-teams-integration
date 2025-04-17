@@ -41,12 +41,8 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const messageHtml = context.activity.messagePayload?.body?.content || '';
+    const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
     const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
-    console.log("🟡 context.activity:", JSON.stringify(context.activity, null, 2));
-    console.log("🟡 full context:", JSON.stringify(context, null, 2));
-
-    
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
   
@@ -54,7 +50,7 @@ class WrikeBot extends TeamsActivityHandler {
     if (descriptionField) {
       descriptionField.value = plainTextMessage;
     }
-    console.log("🟡 context.activity.messagePayload:", context.activity.messagePayload);
+    console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
 
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
