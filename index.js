@@ -53,10 +53,11 @@ class WrikeBot extends TeamsActivityHandler {
     console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
 
     const users = await this.fetchWrikeUsers();
+    console.log("✅ Wrike Users returned:", users);
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
       userDropdown.choices = users.map(user => ({
-        title: user.name,
+        title: user.name || 'Unknown',
         value: user.id,
       }));
     }
