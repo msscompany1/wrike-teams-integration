@@ -41,48 +41,54 @@ const cca = new msal.ConfidentialClientApplication(msalConfig);
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
-    const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
-    const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
-    const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+    try {
+      const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
+      const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
   
-    const descriptionField = cardJson.body.find(f => f.id === 'description');
-    if (descriptionField) {
-      descriptionField.value = plainTextMessage;
+      const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
+      const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
+  
+      const descriptionField = cardJson.body.find(f => f.id === 'description');
+      if (descriptionField) {
+        descriptionField.value = plainTextMessage;
+      }
+  
+      const users = await this.fetchWrikeUsers();
+      console.log("✅ Wrike users:", users);
+  
+      const assigneeField = cardJson.body.find(f => f.id === 'assignee');
+      if (assigneeField) {
+        assigneeField.choices = users.map(u => ({ title: u.name, value: u.id }));
+      }
+  
+      const folders = await this.fetchWrikeProjects();
+      const locationField = cardJson.body.find(f => f.id === 'location');
+      if (locationField) {
+        locationField.choices = folders.map(f => ({ title: f.title, value: f.id }));
+      }
+  
+      return {
+        task: {
+          type: 'continue',
+          value: {
+            title: 'Create Wrike Task',
+            width: 600,
+            height: 600,
+            card: CardFactory.adaptiveCard(cardJson)
+          }
+        }
+      };
+    } catch (err) {
+      console.error("❌ Error in FetchTask:", err?.message || err);
+      return {
+        task: {
+          type: 'message',
+          value: `⚠️ Something went wrong while opening the form: ${err?.message}`
+        }
+      };
     }
-    console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
-
-    const users = await this.fetchWrikeUsers();
-    console.log("✅ Wrike Users returned:", users);
-    const userDropdown = cardJson.body.find(f => f.id === 'assignee');
-    if (userDropdown) {
-      userDropdown.choices = users.map(user => ({
-        title: user.name || 'Unknown',
-        value: user.id,
-      }));
-    }
-
-    const folders = await this.fetchWrikeProjects();
-    const locationDropdown = cardJson.body.find(f => f.id === 'location');
-    if (locationDropdown) {
-      locationDropdown.choices = folders.map(folder => ({
-        title: folder.title,
-        value: folder.id,
-      }));
-    }
-
-    return {
-      task: {
-        type: 'continue',
-        value: {
-          title: 'Create Wrike Task',
-          height: 600,
-          width: 600,
-          card: CardFactory.adaptiveCard(cardJson),
-        },
-      },
-    };
   }
+  
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     try {
