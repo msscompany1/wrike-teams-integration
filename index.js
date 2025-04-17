@@ -215,8 +215,18 @@ class WrikeBot extends TeamsActivityHandler {
       },
     });
     return response.data.data
-      .filter(u => !u.deleted)
-      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+    .filter(u =>
+      !u.deleted &&
+      u.type === 'User' &&             
+      u.profile && u.profile.accountId 
+    )
+    .map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim(),
+      email: u.profiles?.[0]?.email || null,
+      photo: u?.photo || null
+    }));
+  
   }
 
   async fetchWrikeProjects() {
