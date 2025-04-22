@@ -217,20 +217,26 @@ class WrikeBot extends TeamsActivityHandler {
       });
   
       const wrikeUsers = wrikeResponse.data.data;
-  
-      // ✅ Fetch Microsoft 365 users (internal Kashida users only)
       const graphUsers = await this.fetchGraphUsers();
   
-      // ✅ Extract valid Kashida emails (only internal users)
+      console.log("🟢 Wrike users:", wrikeUsers.length);
+      wrikeUsers.forEach(u => {
+        const email = u.profiles?.[0]?.email;
+        console.log(`📨 Wrike user: ${email}`);
+      });
+  
+      console.log("🟢 Graph users:", graphUsers.length);
+      graphUsers.forEach(g => {
+        console.log(`👥 Graph user: ${g.mail || g.userPrincipalName}`);
+      });
+  
+      // Matching logic
       const validEmails = new Set(
         graphUsers
-          .filter(user =>
-            (user.mail || user.userPrincipalName)?.toLowerCase().endsWith("@kashida.com")
-          )
-          .map(user => (user.mail || user.userPrincipalName).toLowerCase())
+          .map(u => (u.mail || u.userPrincipalName)?.toLowerCase())
+          .filter(Boolean)
       );
   
-      // ✅ Filter Wrike users by email match with Kashida domain
       const matched = wrikeUsers.filter(w => {
         const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
         return wrikeEmail && validEmails.has(wrikeEmail);
@@ -239,14 +245,15 @@ class WrikeBot extends TeamsActivityHandler {
         name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
       }));
   
-      console.log("✅ Matched Wrike users with Kashida:", matched.length);
-      return matched;
+      console.log("✅ Matched Wrike + Graph users:", matched.length);
+      return matched.length ? matched : [{ id: 'fallback', name: 'Fallback User' }];
   
     } catch (err) {
-      console.error("❌ Wrike+Graph match error:", err?.response?.data || err.message);
+      console.error("❌ Matching error:", err?.response?.data || err.message);
       return [{ id: 'fallback', name: 'Fallback User' }];
     }
   }
+  
   
   
   
