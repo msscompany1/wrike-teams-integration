@@ -211,24 +211,43 @@ class WrikeBot extends TeamsActivityHandler {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
   
     try {
-      const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
         params: { deleted: false },
-        headers: {
-          Authorization: `Bearer ${wrikeToken}` },
+        headers: { Authorization: `Bearer ${wrikeToken}` },
       });
   
-      const users = response.data.data;
+      const wrikeUsers = wrikeResponse.data.data;
   
-      return users.map(u => ({
-        id: u.id,
-        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unnamed'
+      // ✅ Fetch Microsoft 365 users (internal Kashida users only)
+      const graphUsers = await this.fetchGraphUsers();
+  
+      // ✅ Extract valid Kashida emails (only internal users)
+      const validEmails = new Set(
+        graphUsers
+          .filter(user =>
+            (user.mail || user.userPrincipalName)?.toLowerCase().endsWith("@kashida.com")
+          )
+          .map(user => (user.mail || user.userPrincipalName).toLowerCase())
+      );
+  
+      // ✅ Filter Wrike users by email match with Kashida domain
+      const matched = wrikeUsers.filter(w => {
+        const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
+        return wrikeEmail && validEmails.has(wrikeEmail);
+      }).map(w => ({
+        id: w.id,
+        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
       }));
   
+      console.log("✅ Matched Wrike users with Kashida:", matched.length);
+      return matched;
+  
     } catch (err) {
-      console.error("❌ Error fetching Wrike users:", err.response?.data || err.message);
-      return [{ id: 'fallback', name: 'Test User' }];
+      console.error("❌ Wrike+Graph match error:", err?.response?.data || err.message);
+      return [{ id: 'fallback', name: 'Fallback User' }];
     }
   }
+  
   
   
   
