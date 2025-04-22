@@ -1,4 +1,4 @@
-// Updated index.js with fixed Wrike + Graph matching
+// Updated index.js with cleaned Wrike user filtering
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -191,13 +191,17 @@ class WrikeBot extends TeamsActivityHandler {
           .filter(email => acceptedDomains.some(domain => email?.endsWith(domain)))
       );
 
-      const matched = wrikeUsers.filter(w => {
-        const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
-        return wrikeEmail && validEmails.has(wrikeEmail);
-      }).map(w => ({
-        id: w.id,
-        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
-      }));
+      const matched = wrikeUsers
+        .filter(w => {
+          const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
+          return wrikeEmail &&
+                 !wrikeEmail.includes('wrike-robot.com') &&
+                 validEmails.has(wrikeEmail);
+        })
+        .map(w => ({
+          id: w.id,
+          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+        }));
 
       console.log("✅ Matched Wrike + Graph users:", matched.length);
       return matched.length ? matched : [{ id: 'fallback', name: 'Fallback User' }];
