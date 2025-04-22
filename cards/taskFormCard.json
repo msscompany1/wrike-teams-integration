@@ -11,15 +11,7 @@
       "isRequired": true,
       "errorMessage": "Title is required"
     },
-    {
-      "type": "Input.Text",
-      "id": "description",
-      "label": "Task Description",
-      "isMultiline": true,
-      "placeholder": "Enter task details",
-      "isRequired": true,
-      "errorMessage": "Description is required"
-    },
+   
     {
       "type": "Input.ChoiceSet",
       "id": "location",
@@ -78,6 +70,15 @@
       ],
       "isRequired": true,
       "errorMessage": "Please select a status"
+    },
+    {
+      "type": "Input.Text",
+      "id": "description",
+      "label": "Task Description",
+      "isMultiline": true,
+      "placeholder": "Enter task details",
+      "isRequired": true,
+      "errorMessage": "Description is required"
     }
   ],
   "actions": [
