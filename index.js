@@ -160,7 +160,7 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
-  async fetchWrikeUsers() {
+ /* async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
 
     try {
@@ -209,9 +209,38 @@ class WrikeBot extends TeamsActivityHandler {
     } catch (err) {
       console.error("❌ Matching error:", err?.response?.data || err.message);
       return [{ id: 'fallback', name: 'Fallback User' }];
+    }}*/
+  async fetchWrikeUsers() {
+    const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
+  
+    try {
+      const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
+        params: { deleted: false },
+        headers: { Authorization: `Bearer ${wrikeToken}` },
+      });
+  
+      const wrikeUsers = wrikeResponse.data.data;
+  
+      // ✅ Filter out bots + users without email
+      const filtered = wrikeUsers
+        .filter(w => {
+          const email = w.profiles?.[0]?.email;
+          return email && !email.includes('wrike-robot.com');
+        })
+        .map(w => ({
+          id: w.id,
+          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+        }));
+  
+      console.log("✅ Filtered Wrike users (no bots or missing email):", filtered.length);
+      return filtered;
+  
+    } catch (err) {
+      console.error("❌ Error in fallback fetchWrikeUsers:", err?.response?.data || err.message);
+      return [{ id: 'fallback', name: 'Fallback User' }];
     }
   }
-
+  
   async fetchGraphUsers() {
     try {
       const tokenResponse = await cca.acquireTokenByClientCredential({
