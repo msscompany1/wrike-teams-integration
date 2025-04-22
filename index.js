@@ -254,6 +254,25 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
   
+  async fetchGraphUsers() {
+    try {
+      const tokenResponse = await cca.acquireTokenByClientCredential({
+        scopes: ['https://graph.microsoft.com/.default']
+      });
+  
+      const accessToken = tokenResponse.accessToken;
+  
+      const response = await axios.get('https://graph.microsoft.com/v1.0/users?$select=displayName,mail,userPrincipalName', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+  
+      console.log("✅ Graph API returned users:", response.data.value.length);
+      return response.data.value;
+    } catch (err) {
+      console.error("❌ Error in fetchGraphUsers:", err?.response?.data || err.message);
+      return [];
+    }
+  }
   
   
   
