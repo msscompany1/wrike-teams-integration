@@ -24,17 +24,14 @@
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
-      "label": "Assignee",
-      "style": "compact",
-      "choices": [
-        {
-          "title": "Test User",
-          "value": "test-user-id"
-        }
-      ],
+      "label": "Assignees",
+      "isMultiSelect": true,
+      "choices": [],
+      "style": "expanded",
       "isRequired": true,
-      "errorMessage": "Please select an assignee"
+      "errorMessage": "Please select at least one assignee"
     },
+    
     {
       "type": "Input.Date",
       "id": "startDate",
