@@ -1,4 +1,4 @@
-// Updated index.js with cleaned Wrike user filtering
+// Updated index.js with multi-user assignee support
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -96,6 +96,8 @@ class WrikeBot extends TeamsActivityHandler {
       const wrikeStatus = statusMap[status];
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
 
+      const assigneeIds = Array.isArray(assignee) ? assignee : [assignee];
+
       const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
         description,
@@ -105,7 +107,7 @@ class WrikeBot extends TeamsActivityHandler {
           start: startDate,
           due: dueDate,
         },
-        responsibles: [assignee],
+        responsibles: assigneeIds,
         parents: [location],
       }, {
         headers: {
@@ -116,8 +118,10 @@ class WrikeBot extends TeamsActivityHandler {
 
       const taskLink = wrikeResponse.data.data[0].permalink;
       const users = await this.fetchWrikeUsers();
-      const assigneeDetails = users.find(u => u.id === assignee);
-      const assigneeName = assigneeDetails ? assigneeDetails.name : assignee;
+      const assigneeNames = assigneeIds.map(id => {
+        const user = users.find(u => u.id === id);
+        return user ? user.name : id;
+      });
 
       const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
@@ -137,7 +141,7 @@ class WrikeBot extends TeamsActivityHandler {
                   columns: [
                     {
                       type: 'Column', width: 'stretch', items: [
-                        { type: 'TextBlock', text: `👤 **Assignee:** ${assigneeName}`, wrap: true },
+                        { type: 'TextBlock', text: `👥 **Assignees:** ${assigneeNames.join(', ')}`, wrap: true },
                         { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' }
                       ]
                     }
@@ -160,68 +164,17 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
- /* async fetchWrikeUsers() {
-    const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
-    try {
-      const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
-        params: { deleted: false },
-        headers: { Authorization: `Bearer ${wrikeToken}` },
-      });
-
-      const wrikeUsers = wrikeResponse.data.data;
-      const graphUsers = await this.fetchGraphUsers();
-
-      console.log("🟢 Wrike users:", wrikeUsers.length);
-      wrikeUsers.forEach(u => {
-        const email = u.profiles?.[0]?.email;
-        console.log(`📨 Wrike user: ${email}`);
-      });
-
-      console.log("🟢 Graph users:", graphUsers.length);
-      graphUsers.forEach(g => {
-        console.log(`👥 Graph user: ${g.mail || g.userPrincipalName}`);
-      });
-
-      const acceptedDomains = ['@kashida.com', '@kashida-learning.com'];
-
-      const validEmails = new Set(
-        graphUsers
-          .map(u => (u.mail || u.userPrincipalName)?.toLowerCase())
-          .filter(email => acceptedDomains.some(domain => email?.endsWith(domain)))
-      );
-
-      const matched = wrikeUsers
-        .filter(w => {
-          const wrikeEmail = w.profiles?.[0]?.email?.toLowerCase();
-          return wrikeEmail &&
-                 !wrikeEmail.includes('wrike-robot.com') &&
-                 validEmails.has(wrikeEmail);
-        })
-        .map(w => ({
-          id: w.id,
-          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
-        }));
-
-      console.log("✅ Matched Wrike + Graph users:", matched.length);
-      return matched.length ? matched : [{ id: 'fallback', name: 'Fallback User' }];
-
-    } catch (err) {
-      console.error("❌ Matching error:", err?.response?.data || err.message);
-      return [{ id: 'fallback', name: 'Fallback User' }];
-    }}*/
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-  
+
     try {
       const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
         params: { deleted: false },
         headers: { Authorization: `Bearer ${wrikeToken}` },
       });
-  
+
       const wrikeUsers = wrikeResponse.data.data;
-  
-      // ✅ Filter out bots + users without email
+
       const filtered = wrikeUsers
         .filter(w => {
           const email = w.profiles?.[0]?.email;
@@ -231,34 +184,18 @@ class WrikeBot extends TeamsActivityHandler {
           id: w.id,
           name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
         }));
-  
+
       console.log("✅ Filtered Wrike users (no bots or missing email):", filtered.length);
       return filtered;
-  
+
     } catch (err) {
       console.error("❌ Error in fallback fetchWrikeUsers:", err?.response?.data || err.message);
       return [{ id: 'fallback', name: 'Fallback User' }];
     }
   }
-  
+
   async fetchGraphUsers() {
-    try {
-      const tokenResponse = await cca.acquireTokenByClientCredential({
-        scopes: ['https://graph.microsoft.com/.default']
-      });
-
-      const accessToken = tokenResponse.accessToken;
-
-      const response = await axios.get('https://graph.microsoft.com/v1.0/users?$select=displayName,mail,userPrincipalName', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      console.log("✅ Graph API returned users:", response.data.value.length);
-      return response.data.value;
-    } catch (err) {
-      console.error("❌ Error in fetchGraphUsers:", err?.response?.data || err.message);
-      return [];
-    }
+    return [];
   }
 
   async fetchWrikeProjects() {
