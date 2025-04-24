@@ -25,9 +25,9 @@
       "type": "Input.ChoiceSet",
       "id": "assignee",
       "label": "Assignees",
+      "style": "compact",
       "isMultiSelect": true,
       "choices": [],
-      "style": "expanded",
       "isRequired": true,
       "errorMessage": "Please select at least one assignee"
     },
