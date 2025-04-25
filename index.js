@@ -176,14 +176,21 @@ class WrikeBot extends TeamsActivityHandler {
       const wrikeUsers = wrikeResponse.data.data;
 
       const filtered = wrikeUsers
-        .filter(w => {
-          const email = w.profiles?.[0]?.email;
-          return email && !email.includes('wrike-robot.com');
-        })
-        .map(w => ({
-          id: w.id,
-          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
-        }));
+      .filter(w => {
+        const profile = w.profiles?.[0];
+        const email = profile?.email;
+        const role = profile?.role;
+
+        return (
+          email &&
+          !email.includes('wrike-robot.com') &&
+          role !== 'Collaborator' // ❌ Exclude Collaborators only
+        );
+      })
+      .map(w => ({
+        id: w.id,
+        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+      }));
 
       console.log("✅ Filtered Wrike users (no bots or missing email):", filtered.length);
       return filtered;
