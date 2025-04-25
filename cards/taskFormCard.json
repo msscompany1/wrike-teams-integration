@@ -11,7 +11,6 @@
       "isRequired": true,
       "errorMessage": "Title is required"
     },
-   
     {
       "type": "Input.ChoiceSet",
       "id": "location",
@@ -31,7 +30,6 @@
       "isRequired": true,
       "errorMessage": "Please select at least one assignee"
     },
-    
     {
       "type": "Input.Date",
       "id": "startDate",
@@ -48,25 +46,16 @@
     },
     {
       "type": "Input.ChoiceSet",
-      "id": "status",
-      "label": "Task Status",
+      "id": "importance",
+      "label": "Task Importance",
       "style": "compact",
-      "choices": [
-        {
-          "title": "Active",
-          "value": "Active"
-        },
-        {
-          "title": "Planned",
-          "value": "Planned"
-        },
-        {
-          "title": "Completed",
-          "value": "Completed"
-        }
-      ],
       "isRequired": true,
-      "errorMessage": "Please select a status"
+      "choices": [
+        { "title": "High", "value": "High" },
+        { "title": "Normal", "value": "Normal" },
+        { "title": "Low", "value": "Low" }
+      ],
+      "errorMessage": "Please select importance level"
     },
     {
       "type": "Input.Text",
@@ -76,6 +65,13 @@
       "placeholder": "Enter task details",
       "isRequired": true,
       "errorMessage": "Description is required"
+    },
+    {
+      "type": "Input.Text",
+      "id": "comment",
+      "label": "Additional Comment (Optional)",
+      "isMultiline": true,
+      "placeholder": "Any extra notes (optional)"
     }
   ],
   "actions": [
