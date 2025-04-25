@@ -1,4 +1,4 @@
-// Updated index.js with multi-user assignee support
+// Final updated index.js with importance, Teams Link, and optional comment support
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -9,6 +9,7 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
 const PORT = process.env.PORT || 3978;
+const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID; // Set in Railway/AWS env
 
 const server = restify.createServer();
 server.listen(PORT, () => {
@@ -44,10 +45,8 @@ class WrikeBot extends TeamsActivityHandler {
     if (descriptionField) {
       descriptionField.value = plainTextMessage;
     }
-    console.log("🟢 messagePayload:", context.activity.value?.messagePayload);
 
     const users = await this.fetchWrikeUsers();
-    console.log("✅ Wrike Users returned:", users);
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
       userDropdown.choices = users.map(user => ({
@@ -83,32 +82,32 @@ class WrikeBot extends TeamsActivityHandler {
       console.log("🔁 SubmitAction received");
       console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
 
-      const { title, description, assignee, location, startDate, dueDate, status } = action.data;
-      if (!title || !description || !assignee || !location || !status) {
+      const { title, description, assignee, location, startDate, dueDate, importance, comment } = action.data;
+      if (!title || !description || !assignee || !location || !importance) {
         throw new Error("Missing one or more required fields");
       }
-      const statusMap = {
-        "Active": "Active",
-        "Planned": "Deferred",
-        "Completed": "Completed"
-      };
 
-      const wrikeStatus = statusMap[status];
       const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
       const assigneeIds = Array.isArray(assignee) ? assignee : [assignee];
+      const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
 
       const wrikeResponse = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
         description,
-        importance: 'High',
-        status: wrikeStatus,
+        importance,
+        status: "Active",
         dates: {
           start: startDate,
           due: dueDate,
         },
         responsibles: assigneeIds,
         parents: [location],
+        customFields: [
+          {
+            id: CUSTOM_FIELD_ID_TEAMS_LINK,
+            value: teamsMessageLink
+          }
+        ]
       }, {
         headers: {
           Authorization: `Bearer ${wrikeToken}`,
@@ -116,12 +115,24 @@ class WrikeBot extends TeamsActivityHandler {
         },
       });
 
+      const createdTaskId = wrikeResponse.data.data[0].id;
       const taskLink = wrikeResponse.data.data[0].permalink;
       const users = await this.fetchWrikeUsers();
       const assigneeNames = assigneeIds.map(id => {
         const user = users.find(u => u.id === id);
         return user ? user.name : id;
       });
+
+      if (comment) {
+        await axios.post(`https://www.wrike.com/api/v4/tasks/${createdTaskId}/comments`, {
+          text: comment
+        }, {
+          headers: {
+            Authorization: `Bearer ${wrikeToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
 
       const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
@@ -176,23 +187,23 @@ class WrikeBot extends TeamsActivityHandler {
       const wrikeUsers = wrikeResponse.data.data;
 
       const filtered = wrikeUsers
-      .filter(w => {
-        const profile = w.profiles?.[0];
-        const email = profile?.email;
-        const role = profile?.role;
+        .filter(w => {
+          const profile = w.profiles?.[0];
+          const email = profile?.email;
+          const role = profile?.role;
 
-        return (
-          email &&
-          !email.includes('wrike-robot.com') &&
-          role !== 'Collaborator' // ❌ Exclude Collaborators only
-        );
-      })
-      .map(w => ({
-        id: w.id,
-        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
-      }));
+          return (
+            email &&
+            !email.includes('wrike-robot.com') &&
+            role !== 'Collaborator'
+          );
+        })
+        .map(w => ({
+          id: w.id,
+          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+        }));
 
-      console.log("✅ Filtered Wrike users (no bots or missing email):", filtered.length);
+      console.log("✅ Filtered Wrike users (no bots or collaborators):", filtered.length);
       return filtered;
 
     } catch (err) {
