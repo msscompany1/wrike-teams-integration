@@ -169,7 +169,7 @@ class WrikeBot extends TeamsActivityHandler {
                 },
                 {
                   type: 'TextBlock',
-                  text: `📝 **${title}**`,
+                  text: `**${title}**`,
                   size: 'Medium',
                   wrap: true
                 },
@@ -208,12 +208,7 @@ class WrikeBot extends TeamsActivityHandler {
                     }
                   ]
                 },
-                {
-                  type: 'TextBlock',
-                  text: '🔗 Click below to open this task in Wrike:',
-                  spacing: 'Medium',
-                  wrap: true
-                }
+             
               ],
               actions: [
                 {
