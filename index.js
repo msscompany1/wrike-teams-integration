@@ -1,4 +1,4 @@
-// Final updated index.js with importance, Teams Link, and optional comment support
+// Enhanced index.js: icons in labels, smart defaults, importance emojis, and assignee emoji prefix
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -9,7 +9,7 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const msal = require('@azure/msal-node');
 
 const PORT = process.env.PORT || 3978;
-const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID; // Set in Railway/AWS env
+const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
 const server = restify.createServer();
 server.listen(PORT, () => {
@@ -41,20 +41,42 @@ class WrikeBot extends TeamsActivityHandler {
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
     const cardJson = JSON.parse(fs.readFileSync(cardPath, 'utf8'));
 
+    // Autofill description
     const descriptionField = cardJson.body.find(f => f.id === 'description');
     if (descriptionField) {
       descriptionField.value = plainTextMessage;
     }
 
+    // Autofill due date = today + 1
+    const dueDateField = cardJson.body.find(f => f.id === 'dueDate');
+    if (dueDateField) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dueDateField.value = tomorrow.toISOString().split('T')[0];
+    }
+
+    // Pre-select Normal importance by default
+    const importanceField = cardJson.body.find(f => f.id === 'importance');
+    if (importanceField) {
+      importanceField.value = 'Normal';
+      importanceField.choices = [
+        { title: '🔴 High', value: 'High' },
+        { title: '🟡 Normal', value: 'Normal' },
+        { title: '🟢 Low', value: 'Low' }
+      ];
+    }
+
+    // Enhance assignee list with emoji
     const users = await this.fetchWrikeUsers();
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) {
       userDropdown.choices = users.map(user => ({
-        title: user.name || 'Unknown',
+        title: `👤 ${user.name}`,
         value: user.id,
       }));
     }
 
+    // Populate locations
     const folders = await this.fetchWrikeProjects();
     const locationDropdown = cardJson.body.find(f => f.id === 'location');
     if (locationDropdown) {
@@ -79,9 +101,6 @@ class WrikeBot extends TeamsActivityHandler {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     try {
-      console.log("🔁 SubmitAction received");
-      console.log("🟡 Action data:", JSON.stringify(action.data, null, 2));
-
       const { title, description, assignee, location, startDate, dueDate, importance, comment } = action.data;
       if (!title || !description || !assignee || !location || !importance) {
         throw new Error("Missing one or more required fields");
@@ -96,17 +115,11 @@ class WrikeBot extends TeamsActivityHandler {
         description,
         importance,
         status: "Active",
-        dates: {
-          start: startDate,
-          due: dueDate,
-        },
+        dates: { start: startDate, due: dueDate },
         responsibles: assigneeIds,
         parents: [location],
         customFields: [
-          {
-            id: CUSTOM_FIELD_ID_TEAMS_LINK,
-            value: teamsMessageLink
-          }
+          { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
         ]
       }, {
         headers: {
@@ -177,7 +190,6 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeUsers() {
     const wrikeToken = process.env.WRIKE_ACCESS_TOKEN;
-
     try {
       const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
         params: { deleted: false },
@@ -185,35 +197,19 @@ class WrikeBot extends TeamsActivityHandler {
       });
 
       const wrikeUsers = wrikeResponse.data.data;
-
-      const filtered = wrikeUsers
-        .filter(w => {
-          const profile = w.profiles?.[0];
-          const email = profile?.email;
-          const role = profile?.role;
-
-          return (
-            email &&
-            !email.includes('wrike-robot.com') &&
-            role !== 'Collaborator'
-          );
-        })
-        .map(w => ({
-          id: w.id,
-          name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
-        }));
-
-      console.log("✅ Filtered Wrike users (no bots or collaborators):", filtered.length);
-      return filtered;
-
+      return wrikeUsers.filter(w => {
+        const profile = w.profiles?.[0];
+        const email = profile?.email;
+        const role = profile?.role;
+        return email && !email.includes('wrike-robot.com') && role !== 'Collaborator';
+      }).map(w => ({
+        id: w.id,
+        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+      }));
     } catch (err) {
-      console.error("❌ Error in fallback fetchWrikeUsers:", err?.response?.data || err.message);
+      console.error("❌ Error in fetchWrikeUsers:", err?.response?.data || err.message);
       return [{ id: 'fallback', name: 'Fallback User' }];
     }
-  }
-
-  async fetchGraphUsers() {
-    return [];
   }
 
   async fetchWrikeProjects() {
@@ -222,6 +218,10 @@ class WrikeBot extends TeamsActivityHandler {
       headers: { Authorization: `Bearer ${wrikeToken}` },
     });
     return response.data.data.map(f => ({ id: f.id, title: f.title }));
+  }
+
+  async fetchGraphUsers() {
+    return [];
   }
 }
 
