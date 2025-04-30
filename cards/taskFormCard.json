@@ -20,7 +20,7 @@
     {
       "type": "Input.Text",
       "id": "description",
-      "label": "🧾 Task Description",
+      "label": "Task Description",
       "isMultiline": true,
       "placeholder": "Provide task details or paste message content",
       "isRequired": true,
@@ -58,7 +58,7 @@
     },
     {
       "type": "TextBlock",
-      "text": "👥 Assignment",
+      "text": "Assignment",
       "weight": "Bolder",
       "color": "Accent",
       "spacing": "Medium"
@@ -66,7 +66,7 @@
     {
       "type": "Input.ChoiceSet",
       "id": "assignee",
-      "label": "👤 Select Assignees",
+      "label": "Select Assignees",
       "style": "compact",
       "isMultiSelect": true,
       "choices": [],
@@ -76,7 +76,7 @@
     {
       "type": "Input.ChoiceSet",
       "id": "importance",
-      "label": "📊 Task Importance",
+      "label": "Task Importance",
       "style": "compact",
       "choices": [
         { "title": "🔴 High", "value": "High" },
