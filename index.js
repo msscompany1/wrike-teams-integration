@@ -150,36 +150,86 @@ class WrikeBot extends TeamsActivityHandler {
       const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
       });
-
+      
       return {
         task: {
           type: 'continue',
           value: {
             card: CardFactory.adaptiveCard({
-              type: 'AdaptiveCard', version: '1.5',
+              type: 'AdaptiveCard',
+              version: '1.5',
               body: [
-                { type: 'TextBlock', text: '🎉 Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
-                { type: 'TextBlock', text: `**${title}**`, size: 'Medium', wrap: true },
+                {
+                  type: 'TextBlock',
+                  text: '✅ Task Created Successfully!',
+                  weight: 'Bolder',
+                  size: 'Large',
+                  color: 'Good',
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  text: `📝 **${title}**`,
+                  size: 'Medium',
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  text: '📌 Task Details',
+                  weight: 'Bolder',
+                  color: 'Accent',
+                  spacing: 'Medium'
+                },
                 {
                   type: 'ColumnSet',
                   columns: [
                     {
-                      type: 'Column', width: 'stretch', items: [
-                        { type: 'TextBlock', text: `👥 **Assignees:** ${assigneeNames.join(', ')}`, wrap: true },
-                        { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' }
+                      type: 'Column',
+                      width: 'stretch',
+                      items: [
+                        {
+                          type: 'TextBlock',
+                          text: `👥 **Assignees:** ${assigneeNames.join(', ')}`,
+                          wrap: true
+                        },
+                        {
+                          type: 'TextBlock',
+                          text: `📅 **Due Date:** ${formattedDueDate}`,
+                          wrap: true,
+                          spacing: 'Small'
+                        },
+                        {
+                          type: 'TextBlock',
+                          text: `📊 **Importance:** ${importance}`,
+                          wrap: true,
+                          spacing: 'Small'
+                        }
                       ]
                     }
                   ]
+                },
+                {
+                  type: 'TextBlock',
+                  text: '🔗 Click below to open this task in Wrike:',
+                  spacing: 'Medium',
+                  wrap: true
                 }
               ],
               actions: [
-                { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
+                {
+                  type: 'Action.OpenUrl',
+                  title: '🔗 View Task in Wrike',
+                  url: taskLink
+                }
               ]
             }),
-            title: 'Task Created', height: 300, width: 450
+            title: 'Task Created',
+            height: 300,
+            width: 450
           }
         }
       };
+      
     } catch (error) {
       console.error("❌ Error in submitAction:", error.response?.data || error.message);
       return {
