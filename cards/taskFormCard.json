@@ -4,26 +4,70 @@
   "version": "1.5",
   "body": [
     {
+      "type": "TextBlock",
+      "text": "📝 Task Info",
+      "weight": "Bolder",
+      "color": "Accent",
+      "spacing": "Medium"
+    },
+    {
       "type": "Input.Text",
       "id": "title",
-      "label": "Task Title",
-      "placeholder": "Enter task title",
+      "label": "🖋️ Task Title",
+      "placeholder": "e.g., Fix SEO tags for April blog post",
       "isRequired": true,
       "errorMessage": "Title is required"
     },
     {
+      "type": "Input.Text",
+      "id": "description",
+      "label": "🧾 Task Description",
+      "isMultiline": true,
+      "placeholder": "Provide task details or paste message content",
+      "isRequired": true,
+      "errorMessage": "Description is required"
+    },
+    {
+      "type": "TextBlock",
+      "text": "📍 Location & Dates",
+      "weight": "Bolder",
+      "color": "Accent",
+      "spacing": "Medium"
+    },
+    {
       "type": "Input.ChoiceSet",
       "id": "location",
-      "label": "Location (Project/Folder)",
+      "label": "📁 Project or Folder",
       "style": "compact",
       "choices": [],
       "isRequired": true,
       "errorMessage": "Please select a location"
     },
     {
+      "type": "Input.Date",
+      "id": "startDate",
+      "label": "📅 Start Date",
+      "isRequired": true,
+      "errorMessage": "Start date is required"
+    },
+    {
+      "type": "Input.Date",
+      "id": "dueDate",
+      "label": "📅 Due Date",
+      "isRequired": true,
+      "errorMessage": "Due date is required"
+    },
+    {
+      "type": "TextBlock",
+      "text": "👥 Assignment",
+      "weight": "Bolder",
+      "color": "Accent",
+      "spacing": "Medium"
+    },
+    {
       "type": "Input.ChoiceSet",
       "id": "assignee",
-      "label": "Assignees",
+      "label": "👤 Select Assignees",
       "style": "compact",
       "isMultiSelect": true,
       "choices": [],
@@ -31,45 +75,29 @@
       "errorMessage": "Please select at least one assignee"
     },
     {
-      "type": "Input.Date",
-      "id": "startDate",
-      "label": "Start Date",
-      "isRequired": true,
-      "errorMessage": "Start date is required"
-    },
-    {
-      "type": "Input.Date",
-      "id": "dueDate",
-      "label": "Due Date",
-      "isRequired": true,
-      "errorMessage": "Due date is required"
-    },
-    {
       "type": "Input.ChoiceSet",
       "id": "importance",
-      "label": "Task Importance",
+      "label": "📊 Task Importance",
       "style": "compact",
-      "isRequired": true,
       "choices": [
-        { "title": "High", "value": "High" },
-        { "title": "Normal", "value": "Normal" },
-        { "title": "Low", "value": "Low" }
+        { "title": "🔴 High", "value": "High" },
+        { "title": "🟡 Normal", "value": "Normal" },
+        { "title": "🟢 Low", "value": "Low" }
       ],
+      "isRequired": true,
       "errorMessage": "Please select importance level"
     },
     {
-      "type": "Input.Text",
-      "id": "description",
-      "label": "Task Description",
-      "isMultiline": true,
-      "placeholder": "Enter task details",
-      "isRequired": true,
-      "errorMessage": "Description is required"
+      "type": "TextBlock",
+      "text": "💬 Optional Comment",
+      "weight": "Bolder",
+      "color": "Accent",
+      "spacing": "Medium"
     },
     {
       "type": "Input.Text",
       "id": "comment",
-      "label": "Additional Comment (Optional)",
+      "label": "🗒️ Add Additional Comment",
       "isMultiline": true,
       "placeholder": "Any extra notes (optional)"
     }
@@ -77,7 +105,7 @@
   "actions": [
     {
       "type": "Action.Submit",
-      "title": "Create Task",
+      "title": "✅ Create Task",
       "data": {
         "commandId": "create-wrike-task"
       }
