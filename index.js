@@ -1,4 +1,4 @@
-// index.js – Final debug-enhanced version with fallback for user ID and logs
+// index.js – Final with working Restify query parsing + auto form after login
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -10,6 +10,9 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 const server = restify.createServer();
+
+// 🔧 Fix: Enable query parsing for /auth/callback to read ?code=...&state=...
+server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
   console.log(`✅ Bot is listening on http://localhost:${PORT}`);
@@ -189,7 +192,7 @@ server.get('/auth/callback', async (req, res) => {
     const token = response.data.access_token;
     wrikeTokens.set(userId, token);
     console.log(`🟢 Token stored for user: ${userId}`);
-    res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
+    res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again to fill the task form.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
     res.send(500, '❌ Authorization failed');
