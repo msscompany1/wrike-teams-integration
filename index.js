@@ -110,8 +110,10 @@ class WrikeBot extends TeamsActivityHandler {
       dates: { start: startDate, due: dueDate },
       responsibles: [assignee],
       parents: [location],
-      customStatusId: status
-    }, {
+      customFields: [
+        { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
+      ]
+  }, {
       headers: { Authorization: `Bearer ${wrikeToken}` }
     });
 
@@ -127,43 +129,111 @@ class WrikeBot extends TeamsActivityHandler {
             type: 'AdaptiveCard',
             version: '1.5',
             body: [
-              { type: 'TextBlock', text: '✅ Task created successfully!', weight: 'Bolder', size: 'Medium' },
-              { type: 'TextBlock', text: `🔖 ${title}`, wrap: true },
               {
-                type: 'ActionSet',
-                actions: [
+                type: 'TextBlock',
+                text: '✅ Task Created Successfully!',
+                weight: 'Bolder',
+                size: 'Large',
+                color: 'Good',
+                wrap: true
+              },
+              {
+                type: 'TextBlock',
+                text: `**${title}**`,
+                size: 'Medium',
+                wrap: true
+              },
+              {
+                type: 'TextBlock',
+                text: '📌 Task Details',
+                weight: 'Bolder',
+                color: 'Accent',
+                spacing: 'Medium'
+              },
+              {
+                type: 'ColumnSet',
+                columns: [
                   {
-                    type: 'Action.OpenUrl',
-                    title: '🔗 View Task in Wrike',
-                    url: task.permalink
+                    type: 'Column',
+                    width: 'stretch',
+                    items: [
+                      {
+                        type: 'TextBlock',
+                        text: `👥 **Assignees:** ${assigneeNames.join(', ')}`,
+                        wrap: true
+                      },
+                      {
+                        type: 'TextBlock',
+                        text: `📅 **Due Date:** ${formattedDueDate}`,
+                        wrap: true,
+                        spacing: 'Small'
+                      },
+                      {
+                        type: 'TextBlock',
+                        text: `📊 **Importance:** ${importance}`,
+                        wrap: true,
+                        spacing: 'Small'
+                      }
+                    ]
                   }
                 ]
+              },
+           
+            ],
+            actions: [
+              {
+                type: 'Action.OpenUrl',
+                title: '🔗 View Task in Wrike',
+                url: taskLink
               }
             ]
-          })
+          }),
+          title: 'Task Created',
+          height: 300,
+          width: 450
         }
       }
     };
+
+             
   }
 
-  async fetchWrikeUsers(token) {
-    const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return res.data.data.filter(u => u.profiles?.[0]?.role !== 'Collaborator')
-      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+  async fetchWrikeUsers() {
+    try {
+      const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
+        params: { deleted: false },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const wrikeUsers = wrikeResponse.data.data;
+      return wrikeUsers.filter(w => {
+        const profile = w.profiles?.[0];
+        const email = profile?.email;
+        const role = profile?.role;
+        return email && !email.includes('wrike-robot.com') && role !== 'Collaborator';
+      }).map(w => ({
+        id: w.id,
+        name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
+      }));
+    } catch (err) {
+      console.error("❌ Error in fetchWrikeUsers:", err?.response?.data || err.message);
+      return [{ id: 'fallback', name: 'Fallback User' }];
+    }
   }
 
-  async fetchWrikeProjects(token) {
-    const res = await axios.get('https://www.wrike.com/api/v4/folders?descendants=true', {
+
+  async fetchWrikeProjects() {
+    const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return res.data.data
-      .filter(f => f.project || f.childIds?.length > 0) // folders/projects, not spaces
-      .filter(f => !f.title.includes("Recycle Bin") && f.title !== "")
-      .map(f => ({ id: f.id, title: f.title }));
+    return response.data.data.map(f => ({ id: f.id, title: f.title }));
+  }
+
+  async fetchGraphUsers() {
+    return [];
   }
 }
+
 
 const bot = new WrikeBot();
 
