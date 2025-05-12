@@ -1,4 +1,4 @@
-// index.js - Stable, production-ready Wrike task bot with pre-auth check and state fix
+// index.js – Final working version with Wrike OAuth and correct state handling
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -26,8 +26,9 @@ const wrikeTokens = new Map();
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const userId = context.activity.from?.aadObjectId || context.activity.from?.id;
-    console.log("👤 Teams user ID:", userId);
+    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id;
+    console.log("👤 Extracted Teams user ID:", userId);
+
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
@@ -43,7 +44,7 @@ class WrikeBot extends TeamsActivityHandler {
               type: 'AdaptiveCard',
               version: '1.5',
               body: [
-                { type: 'TextBlock', text: 'To create a Wrike task, please login to your Wrike account.', wrap: true }
+                { type: 'TextBlock', text: 'To continue, please login to your Wrike account.', wrap: true }
               ],
               actions: [
                 {
@@ -93,14 +94,14 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const userId = context.activity.from?.aadObjectId || context.activity.from?.id;
+    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id;
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
       return {
         task: {
           type: 'message',
-          value: '⚠️ Please login to Wrike first using "Create Wrike Task" button.'
+          value: '⚠️ You must login to Wrike before creating tasks. Please try again.'
         }
       };
     }
@@ -182,7 +183,8 @@ server.get('/auth/callback', async (req, res) => {
 
     const token = response.data.access_token;
     wrikeTokens.set(userId, token);
-    res.send(200, '✅ Wrike login successful. You may now return to Teams and try again.');
+    console.log(`🟢 Token stored for user: ${userId}`);
+    res.send(200, '✅ Wrike login successful. You may now return to Teams and create your task.');
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
     res.send(500, '❌ Authorization failed');
