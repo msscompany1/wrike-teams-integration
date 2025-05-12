@@ -1,4 +1,4 @@
-// index.js – Final working version with Wrike OAuth and correct state handling
+// index.js – Final debug-enhanced version with fallback for user ID and logs
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -26,8 +26,9 @@ const wrikeTokens = new Map();
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id;
-    console.log("👤 Extracted Teams user ID:", userId);
+    console.log("🔍 context.activity.from:", context.activity.from);
+    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
+    console.log("🧠 Extracted Teams userId:", userId);
 
     const wrikeToken = wrikeTokens.get(userId);
 
@@ -94,7 +95,7 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id;
+    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
@@ -164,8 +165,12 @@ server.post('/api/messages', async (req, res) => {
 });
 
 server.get('/auth/callback', async (req, res) => {
+  console.log("🔁 OAuth callback hit");
   const code = req.query.code;
   const userId = req.query.state;
+
+  console.log("📥 Received code:", code);
+  console.log("📥 Received state:", userId);
 
   if (!code || !userId) return res.send(400, 'Missing code or user ID');
 
@@ -184,7 +189,7 @@ server.get('/auth/callback', async (req, res) => {
     const token = response.data.access_token;
     wrikeTokens.set(userId, token);
     console.log(`🟢 Token stored for user: ${userId}`);
-    res.send(200, '✅ Wrike login successful. You may now return to Teams and create your task.');
+    res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
     res.send(500, '❌ Authorization failed');
