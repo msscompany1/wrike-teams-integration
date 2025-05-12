@@ -1,4 +1,4 @@
-// index.js - Form-first, login-after Wrike Task Flow
+// index.js - Form-first, login-after Wrike Task Flow with conditional dropdown loading
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -22,11 +22,13 @@ const adapter = new BotFrameworkAdapter({
 
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
-const wrikeTokens = new Map(); // Temporary per-user token store
-const pendingSubmissions = new Map(); // Temporary form submission store
+const wrikeTokens = new Map();
+const pendingSubmissions = new Map();
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
+    const userId = context.activity.from.aadObjectId;
+    const wrikeToken = wrikeTokens.get(userId);
     const messageHtml = context.activity.value?.messagePayload?.body?.content || '';
     const plainTextMessage = messageHtml.replace(/<[^>]+>/g, '').trim();
     const cardPath = path.join(__dirname, 'cards', 'taskFormCard.json');
@@ -34,6 +36,22 @@ class WrikeBot extends TeamsActivityHandler {
 
     const descriptionField = cardJson.body.find(f => f.id === 'description');
     if (descriptionField) descriptionField.value = plainTextMessage;
+
+    // Populate dropdowns if token exists
+    if (wrikeToken) {
+      const users = await this.fetchWrikeUsers(wrikeToken);
+      const folders = await this.fetchWrikeProjects(wrikeToken);
+
+      const userDropdown = cardJson.body.find(f => f.id === 'assignee');
+      if (userDropdown) {
+        userDropdown.choices = users.map(user => ({ title: user.name, value: user.id }));
+      }
+
+      const locationDropdown = cardJson.body.find(f => f.id === 'location');
+      if (locationDropdown) {
+        locationDropdown.choices = folders.map(folder => ({ title: folder.title, value: folder.id }));
+      }
+    }
 
     return {
       task: {
@@ -54,7 +72,6 @@ class WrikeBot extends TeamsActivityHandler {
     const formData = action.data;
 
     if (!wrikeToken) {
-      // Save form data for after auth
       pendingSubmissions.set(userId, formData);
 
       return {
@@ -82,6 +99,20 @@ class WrikeBot extends TeamsActivityHandler {
     }
 
     return await createTask(formData, wrikeToken);
+  }
+
+  async fetchWrikeUsers(token) {
+    const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.data.data.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+  }
+
+  async fetchWrikeProjects(token) {
+    const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.data.data.map(f => ({ id: f.id, title: f.title }));
   }
 }
 
@@ -149,7 +180,6 @@ server.get('/auth/callback', async (req, res) => {
     const token = response.data.access_token;
     wrikeTokens.set(userId, token);
 
-    // Resume pending task creation if any
     const formData = pendingSubmissions.get(userId);
     if (formData) {
       const result = await createTask(formData, token);
