@@ -1,4 +1,4 @@
-// index.js – Final with working Restify query parsing + auto form after login
+// index.js – Refined: Assignees exclude Collaborators, Locations exclude spaces, success card has View button
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -10,8 +10,6 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 const server = restify.createServer();
-
-// 🔧 Fix: Enable query parsing for /auth/callback to read ?code=...&state=...
 server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
@@ -29,16 +27,11 @@ const wrikeTokens = new Map();
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    console.log("🔍 context.activity.from:", context.activity.from);
     const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
-    console.log("🧠 Extracted Teams userId:", userId);
-
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
       const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
-      console.log("🔗 Wrike Auth URL:", loginUrl);
-
       return {
         task: {
           type: 'continue',
@@ -135,8 +128,17 @@ class WrikeBot extends TeamsActivityHandler {
             version: '1.5',
             body: [
               { type: 'TextBlock', text: '✅ Task created successfully!', weight: 'Bolder', size: 'Medium' },
-              { type: 'TextBlock', text: `🔗 ${task.title}`, wrap: true },
-              { type: 'TextBlock', text: `View: ${task.permalink}`, wrap: true }
+              { type: 'TextBlock', text: `🔖 ${title}`, wrap: true },
+              {
+                type: 'ActionSet',
+                actions: [
+                  {
+                    type: 'Action.OpenUrl',
+                    title: '🔗 View Task in Wrike',
+                    url: task.permalink
+                  }
+                ]
+              }
             ]
           })
         }
@@ -148,14 +150,18 @@ class WrikeBot extends TeamsActivityHandler {
     const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return res.data.data.map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
+    return res.data.data.filter(u => u.profiles?.[0]?.role !== 'Collaborator')
+      .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() }));
   }
 
   async fetchWrikeProjects(token) {
-    const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
+    const res = await axios.get('https://www.wrike.com/api/v4/folders?descendants=true', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return res.data.data.map(f => ({ id: f.id, title: f.title }));
+    return res.data.data
+      .filter(f => f.project || f.childIds?.length > 0) // folders/projects, not spaces
+      .filter(f => !f.title.includes("Recycle Bin") && f.title !== "")
+      .map(f => ({ id: f.id, title: f.title }));
   }
 }
 
@@ -168,12 +174,8 @@ server.post('/api/messages', async (req, res) => {
 });
 
 server.get('/auth/callback', async (req, res) => {
-  console.log("🔁 OAuth callback hit");
   const code = req.query.code;
   const userId = req.query.state;
-
-  console.log("📥 Received code:", code);
-  console.log("📥 Received state:", userId);
 
   if (!code || !userId) return res.send(400, 'Missing code or user ID');
 
@@ -191,7 +193,6 @@ server.get('/auth/callback', async (req, res) => {
 
     const token = response.data.access_token;
     wrikeTokens.set(userId, token);
-    console.log(`🟢 Token stored for user: ${userId}`);
     res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again to fill the task form.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
