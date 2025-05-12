@@ -1,4 +1,4 @@
-// index.js - Stable, production-ready Wrike task bot with pre-auth check
+// index.js - Stable, production-ready Wrike task bot with pre-auth check and state fix
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -26,10 +26,14 @@ const wrikeTokens = new Map();
 
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
-    const userId = context.activity.from.aadObjectId;
+    const userId = context.activity.from?.aadObjectId || context.activity.from?.id;
+    console.log("👤 Teams user ID:", userId);
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
+      const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+      console.log("🔗 Wrike Auth URL:", loginUrl);
+
       return {
         task: {
           type: 'continue',
@@ -45,7 +49,7 @@ class WrikeBot extends TeamsActivityHandler {
                 {
                   type: 'Action.OpenUrl',
                   title: 'Login to Wrike',
-                  url: `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`
+                  url: loginUrl
                 }
               ]
             })
@@ -89,7 +93,7 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const userId = context.activity.from.aadObjectId;
+    const userId = context.activity.from?.aadObjectId || context.activity.from?.id;
     const wrikeToken = wrikeTokens.get(userId);
 
     if (!wrikeToken) {
