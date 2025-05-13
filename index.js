@@ -1,4 +1,4 @@
-// index.js – Refined: Assignees exclude Collaborators, Locations exclude spaces, success card has View button
+// index.js – Fixed token scope bug, corrected function arguments, improved completion card
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -103,102 +103,51 @@ class WrikeBot extends TeamsActivityHandler {
       };
     }
 
-    const { title, description, assignee, location, startDate, dueDate, status } = action.data;
+    const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
+    const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
+
     const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
       title,
       description,
+      importance,
+      status: "Active",
       dates: { start: startDate, due: dueDate },
-      responsibles: [assignee],
+      responsibles: Array.isArray(assignee) ? assignee : [assignee],
       parents: [location],
       customFields: [
         { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
       ]
-  }, {
+    }, {
       headers: { Authorization: `Bearer ${wrikeToken}` }
     });
 
     const task = response.data.data[0];
+    const taskLink = task.permalink;
+
     return {
       task: {
         type: 'continue',
         value: {
           title: 'Task Created',
-          height: 250,
-          width: 400,
+          height: 300,
+          width: 450,
           card: CardFactory.adaptiveCard({
             type: 'AdaptiveCard',
             version: '1.5',
             body: [
-              {
-                type: 'TextBlock',
-                text: '✅ Task Created Successfully!',
-                weight: 'Bolder',
-                size: 'Large',
-                color: 'Good',
-                wrap: true
-              },
-              {
-                type: 'TextBlock',
-                text: `**${title}**`,
-                size: 'Medium',
-                wrap: true
-              },
-              {
-                type: 'TextBlock',
-                text: '📌 Task Details',
-                weight: 'Bolder',
-                color: 'Accent',
-                spacing: 'Medium'
-              },
-              {
-                type: 'ColumnSet',
-                columns: [
-                  {
-                    type: 'Column',
-                    width: 'stretch',
-                    items: [
-                      {
-                        type: 'TextBlock',
-                        text: `👥 **Assignees:** ${assigneeNames.join(', ')}`,
-                        wrap: true
-                      },
-                      {
-                        type: 'TextBlock',
-                        text: `📅 **Due Date:** ${formattedDueDate}`,
-                        wrap: true,
-                        spacing: 'Small'
-                      },
-                      {
-                        type: 'TextBlock',
-                        text: `📊 **Importance:** ${importance}`,
-                        wrap: true,
-                        spacing: 'Small'
-                      }
-                    ]
-                  }
-                ]
-              },
-           
+              { type: 'TextBlock', text: '✅ Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
+              { type: 'TextBlock', text: `📌 ${title}`, size: 'Medium', wrap: true }
             ],
             actions: [
-              {
-                type: 'Action.OpenUrl',
-                title: '🔗 View Task in Wrike',
-                url: taskLink
-              }
+              { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
             ]
-          }),
-          title: 'Task Created',
-          height: 300,
-          width: 450
+          })
         }
       }
     };
-
-             
   }
 
-  async fetchWrikeUsers() {
+  async fetchWrikeUsers(token) {
     try {
       const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
         params: { deleted: false },
@@ -208,9 +157,8 @@ class WrikeBot extends TeamsActivityHandler {
       const wrikeUsers = wrikeResponse.data.data;
       return wrikeUsers.filter(w => {
         const profile = w.profiles?.[0];
-        const email = profile?.email;
         const role = profile?.role;
-        return email && !email.includes('wrike-robot.com') && role !== 'Collaborator';
+        return role !== 'Collaborator';
       }).map(w => ({
         id: w.id,
         name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
@@ -221,19 +169,15 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
-
-  async fetchWrikeProjects() {
+  async fetchWrikeProjects(token) {
     const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data.data.map(f => ({ id: f.id, title: f.title }));
   }
 
-  async fetchGraphUsers() {
-    return [];
-  }
+  async fetchGraphUsers() { return []; }
 }
-
 
 const bot = new WrikeBot();
 
@@ -246,7 +190,6 @@ server.post('/api/messages', async (req, res) => {
 server.get('/auth/callback', async (req, res) => {
   const code = req.query.code;
   const userId = req.query.state;
-
   if (!code || !userId) return res.send(400, 'Missing code or user ID');
 
   try {
@@ -265,7 +208,7 @@ server.get('/auth/callback', async (req, res) => {
     wrikeTokens.set(userId, token);
     res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again to fill the task form.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
   } catch (err) {
-    console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
+    console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
     res.send(500, '❌ Authorization failed');
   }
 });
