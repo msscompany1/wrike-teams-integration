@@ -1,4 +1,4 @@
-// index.js – Fixed token scope bug, corrected function arguments, improved completion card
+// index.js – Display user emails and filter projects only (no spaces)
 require('dotenv').config();
 const restify = require('restify');
 const fs = require('fs');
@@ -90,63 +90,6 @@ class WrikeBot extends TeamsActivityHandler {
     };
   }
 
-  async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
-    const wrikeToken = wrikeTokens.get(userId);
-
-    if (!wrikeToken) {
-      return {
-        task: {
-          type: 'message',
-          value: '⚠️ You must login to Wrike before creating tasks. Please try again.'
-        }
-      };
-    }
-
-    const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
-    const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
-
-    const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
-      title,
-      description,
-      importance,
-      status: "Active",
-      dates: { start: startDate, due: dueDate },
-      responsibles: Array.isArray(assignee) ? assignee : [assignee],
-      parents: [location],
-      customFields: [
-        { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
-      ]
-    }, {
-      headers: { Authorization: `Bearer ${wrikeToken}` }
-    });
-
-    const task = response.data.data[0];
-    const taskLink = task.permalink;
-
-    return {
-      task: {
-        type: 'continue',
-        value: {
-          title: 'Task Created',
-          height: 300,
-          width: 450,
-          card: CardFactory.adaptiveCard({
-            type: 'AdaptiveCard',
-            version: '1.5',
-            body: [
-              { type: 'TextBlock', text: '✅ Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
-              { type: 'TextBlock', text: `📌 ${title}`, size: 'Medium', wrap: true }
-            ],
-            actions: [
-              { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
-            ]
-          })
-        }
-      }
-    };
-  }
-
   async fetchWrikeUsers(token) {
     try {
       const wrikeResponse = await axios.get('https://www.wrike.com/api/v4/contacts', {
@@ -157,8 +100,9 @@ class WrikeBot extends TeamsActivityHandler {
       const wrikeUsers = wrikeResponse.data.data;
       return wrikeUsers.filter(w => {
         const profile = w.profiles?.[0];
+        const email = profile?.email;
         const role = profile?.role;
-        return role !== 'Collaborator';
+        return email && !email.includes('wrike-robot.com') && role !== 'Collaborator';
       }).map(w => ({
         id: w.id,
         name: `${w.firstName || ''} ${w.lastName || ''}`.trim() + ` (${w.profiles[0]?.email})`
@@ -173,7 +117,9 @@ class WrikeBot extends TeamsActivityHandler {
     const response = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data.data.map(f => ({ id: f.id, title: f.title }));
+    return response.data.data
+      .filter(f => f.project) // include only actual project nodes
+      .map(f => ({ id: f.id, title: f.title }));
   }
 
   async fetchGraphUsers() { return []; }
