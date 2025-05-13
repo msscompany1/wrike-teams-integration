@@ -231,8 +231,48 @@ server.get('/auth/callback', async (req, res) => {
     wrikeTokens.set(userId, token);
 
     if (!res.headersSent) {
-      res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again to fill the task form.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
+      res.send(`
+        <html>
+          <head>
+            <title>Wrike Login Successful</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f6f9;
+                color: #333;
+                padding: 40px;
+                text-align: center;
+              }
+              .card {
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                display: inline-block;
+              }
+              h2 {
+                color: #28a745;
+              }
+              p {
+                margin-top: 10px;
+                font-size: 16px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>✅ Wrike Login Successful</h2>
+              <p>You can now return to Microsoft Teams and continue creating your Wrike task.</p>
+              <p>This window will close automatically.</p>
+            </div>
+            <script>
+              setTimeout(() => { window.close(); }, 3000);
+            </script>
+          </body>
+        </html>
+      `);
     }
+    
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
     if (!res.headersSent) res.send(500, '❌ Authorization failed');
