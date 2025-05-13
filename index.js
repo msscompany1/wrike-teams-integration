@@ -237,8 +237,8 @@ server.get('/auth/callback', async (req, res) => {
           <head><title>Success</title></head>
           <body style="text-align:center;font-family:sans-serif;">
             <h2 style="color:green;">✅ Wrike login successful</h2>
-            <p>This window will close automatically...</p>
-            <script>setTimeout(() => { window.close(); }, 3000);</script>
+            <p>Get Back to teams and re create the task ...</p>
+            <a href="https://teams.microsoft.com" target="_blank" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#28a745;color:#fff;text-decoration:none;border-radius:5px;">Return to Teams</a>
           </body>
         </html>
       `);
