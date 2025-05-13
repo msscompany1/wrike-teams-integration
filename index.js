@@ -231,6 +231,7 @@ server.get('/auth/callback', async (req, res) => {
     wrikeTokens.set(userId, token);
 
     if (!res.headersSent) {
+      res.setHeader('Content-Type', 'text/html');
       res.send(`
         <html>
           <head>
@@ -271,6 +272,8 @@ server.get('/auth/callback', async (req, res) => {
           </body>
         </html>
       `);
+        
+
     }
     
   } catch (err) {
