@@ -233,50 +233,22 @@ server.get('/auth/callback', async (req, res) => {
     if (!res.headersSent) {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(`
-        <!DOCTYPE html>
         <html>
-          <head>
-            <title>Wrike Login Successful</title>
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                background-color: #f4f6f9;
-                color: #333;
-                padding: 40px;
-                text-align: center;
-              }
-              .card {
-                background: white;
-                padding: 30px;
-                border-radius: 12px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                display: inline-block;
-              }
-              h2 {
-                color: #28a745;
-              }
-              p {
-                margin-top: 10px;
-                font-size: 16px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <h2>✅ Wrike Login Successful</h2>
-              <p>You can now return to Microsoft Teams and continue creating your Wrike task.</p>
-              <p>This window will close automatically.</p>
-            </div>
-            <script>
-              setTimeout(() => { window.close(); }, 3000);
-            </script>
+          <head><title>Success</title></head>
+          <body style="text-align:center;font-family:sans-serif;">
+            <h2 style="color:green;">✅ Wrike login successful</h2>
+            <p>This window will close automatically...</p>
+            <script>setTimeout(() => { window.close(); }, 3000);</script>
           </body>
         </html>
       `);
+      return; // ✅ PREVENT ANY fallthrough!
     }
-    
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
-    if (!res.headersSent) res.send(500, '❌ Authorization failed');
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('❌ Authorization failed');
+    }
   }
 });
