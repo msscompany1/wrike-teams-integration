@@ -122,7 +122,7 @@ class WrikeBot extends TeamsActivityHandler {
     });
 
     const task = response.data.data[0];
-    const taskLink = task.permalink;
+    const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
     const assigneeNames = Array.isArray(assignee) ? assignee : [assignee];
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
@@ -231,24 +231,10 @@ server.get('/auth/callback', async (req, res) => {
     wrikeTokens.set(userId, token);
 
     if (!res.headersSent) {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <html>
-          <head><title>Success</title></head>
-          <body style="text-align:center;font-family:sans-serif;">
-            <h2 style="color:green;">✅ Wrike login successful</h2>
-            <p>Get Back to teams and re create the task ...</p>
-            <a href="https://teams.microsoft.com" target="_blank" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#28a745;color:#fff;text-decoration:none;border-radius:5px;">Return to Teams</a>
-          </body>
-        </html>
-      `);
-      return; // ✅ PREVENT ANY fallthrough!
+      res.send(`<html><body><h2>✅ Wrike login successful</h2><p>You may now return to Microsoft Teams and click 'Create Wrike Task' again to fill the task form.</p><script>setTimeout(() => { window.close(); }, 3000);</script></body></html>`);
     }
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
-    if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('❌ Authorization failed');
-    }
+    if (!res.headersSent) res.send(500, '❌ Authorization failed');
   }
 });
