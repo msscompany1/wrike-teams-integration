@@ -9,7 +9,12 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
-const server = restify.createServer();
+const httpsOptions = {
+  key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/privkey.pem'),
+  certificate: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
+};
+
+const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
@@ -242,7 +247,7 @@ server.get('/auth/callback', async (req, res) => {
           </body>
         </html>
       `);
-      return; // ✅ PREVENT ANY fallthrough!
+      return; 
     }
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
