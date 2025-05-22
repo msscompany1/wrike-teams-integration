@@ -9,12 +9,20 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
+const https = require('https');
+
 const httpsOptions = {
   key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/privkey.pem'),
-  certificate: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
+  cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
 };
 
-const server = restify.createServer(httpsOptions);
+const server = restify.createServer();
+server.use(restify.plugins.queryParser());
+
+https.createServer(httpsOptions, server).listen(PORT, () => {
+  console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
+});
+
 server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
