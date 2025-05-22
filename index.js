@@ -22,13 +22,6 @@ server.use(restify.plugins.queryParser());
 https.createServer(httpsOptions, server).listen(PORT, () => {
   console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
 });
-
-server.use(restify.plugins.queryParser());
-
-server.listen(PORT, () => {
-  console.log(`✅ Bot is listening on http://localhost:${PORT}`);
-});
-
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
