@@ -1,24 +1,23 @@
-// index.js – Full code with safe auth callback, user email display, project-only filter
 require('dotenv').config();
-const restify = require('restify');
 const fs = require('fs');
 const path = require('path');
+const restify = require('restify');
 const axios = require('axios');
+const https = require('https');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
-const https = require('https');
 
+// ✅ HTTPS certificate setup
 const httpsOptions = {
   key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/privkey.pem'),
   cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
 };
 
-const restify = require('restify');
-const https = require('https');
-const server = restify.createServer(httpsOptions); // << PASS HTTPS OPTIONS HERE
+// ✅ Create HTTPS-enabled Restify server
+const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
