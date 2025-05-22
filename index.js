@@ -16,12 +16,15 @@ const httpsOptions = {
   cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
 };
 
-const server = restify.createServer();
+const restify = require('restify');
+const https = require('https');
+const server = restify.createServer(httpsOptions); // << PASS HTTPS OPTIONS HERE
 server.use(restify.plugins.queryParser());
 
-https.createServer(httpsOptions, server).listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
 });
+
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD,
