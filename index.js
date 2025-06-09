@@ -231,6 +231,10 @@ class WrikeBot extends TeamsActivityHandler {
 }
 
 const bot = new WrikeBot();
+server.get('/', (req, res, next) => {
+  res.send(200, '✔️ Wrike Teams Bot is running!');
+  return next();
+});
 
 server.post('/api/messages', async (req, res) => {
   await adapter.processActivity(req, res, async (context) => {
