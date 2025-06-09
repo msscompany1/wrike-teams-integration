@@ -13,9 +13,10 @@ const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 const server = restify.createServer();
 server.use(restify.plugins.queryParser());
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`✅ Bot running on http://127.0.0.1:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`✅ Bot running on port ${PORT}`);
 });
+
 
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
