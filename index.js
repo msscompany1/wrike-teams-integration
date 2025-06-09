@@ -120,7 +120,7 @@ class WrikeBot extends TeamsActivityHandler {
       importance,
       status: "Active",
       dates: { start: startDate, due: dueDate },
-      responsibles: typeof assignee === "string" ? assignee.split(',') : assignee,
+      responsibles: Array.isArray(assignee) ? assignee : [assignee],
       parents: [location],
       customFields: [
         { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
