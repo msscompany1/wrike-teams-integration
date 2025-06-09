@@ -120,7 +120,7 @@ class WrikeBot extends TeamsActivityHandler {
       importance,
       status: "Active",
       dates: { start: startDate, due: dueDate },
-      responsibles: Array.isArray(assignee) ? assignee : [assignee],
+      responsibles: typeof assignee === "string" ? assignee.split(',') : assignee,
       parents: [location],
       customFields: [
         { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
@@ -131,7 +131,14 @@ class WrikeBot extends TeamsActivityHandler {
 
     const task = response.data.data[0];
     const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-    const assigneeNames = Array.isArray(assignee) ? assignee : [assignee];
+    const users = await this.fetchWrikeUsers(wrikeToken);
+    const assigneeIds = typeof assignee === "string" ? assignee.split(',') : assignee;
+    const assigneeNames = assigneeIds
+      .map(id => {
+        const user = users.find(u => u.id === id);
+        return user ? user.name : id;
+      })
+      .join(', ');
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
@@ -244,7 +251,7 @@ server.get('/auth/callback', async (req, res) => {
         <html>
           <head><title>Success</title></head>
           <body style="text-align:center;font-family:sans-serif;">
-            <h2 style="color:green;">✅ Wrike login successful</h2>
+            <h2 style="color:green;"> Wrike login successful</h2>
             <p>Get Back to teams and re create the task ...</p>
             <a href="https://teams.microsoft.com" target="_blank" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#28a745;color:#fff;text-decoration:none;border-radius:5px;">Return to Teams</a>
           </body>
