@@ -131,14 +131,7 @@ class WrikeBot extends TeamsActivityHandler {
 
     const task = response.data.data[0];
     const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-    const users = await this.fetchWrikeUsers(wrikeToken);
-    const assigneeIds = typeof assignee === "string" ? assignee.split(',') : assignee;
-    const assigneeNames = assigneeIds
-      .map(id => {
-        const user = users.find(u => u.id === id);
-        return user ? user.name : id;
-      })
-      .join(', ');
+    const assigneeNames = Array.isArray(assignee) ? assignee : [assignee];
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
