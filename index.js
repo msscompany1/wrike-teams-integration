@@ -3,20 +3,26 @@ const fs = require('fs');
 const path = require('path');
 const restify = require('restify');
 const axios = require('axios');
+const https = require('https');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
-// *** NO httpsOptions, NO certificate code! ***
-const server = restify.createServer();
+// ✅ HTTPS certificate setup
+const httpsOptions = {
+  key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
+};
+
+// ✅ Create HTTPS-enabled Restify server
+const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
 server.listen(PORT, () => {
-  console.log(`✅ Bot running on port ${PORT}`);
+  console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
 });
-
 
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
@@ -108,23 +114,13 @@ class WrikeBot extends TeamsActivityHandler {
     const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
     const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
 
-    // Ensure multi-assignee always handled as array
-    let assigneeIds = [];
-    if (Array.isArray(assignee)) {
-      assigneeIds = assignee;
-    } else if (typeof assignee === "string" && assignee.includes(',')) {
-      assigneeIds = assignee.split(',').map(x => x.trim()).filter(Boolean);
-    } else if (assignee) {
-      assigneeIds = [assignee];
-    }
-
     const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
       title,
       description,
       importance,
       status: "Active",
       dates: { start: startDate, due: dueDate },
-      responsibles: assigneeIds,
+      responsibles: Array.isArray(assignee) ? assignee : [assignee],
       parents: [location],
       customFields: [
         { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
@@ -135,14 +131,7 @@ class WrikeBot extends TeamsActivityHandler {
 
     const task = response.data.data[0];
     const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-
-    // Fetch display names for assignees
-    const users = await this.fetchWrikeUsers(wrikeToken);
-    const assigneeNames = assigneeIds.map(id => {
-      const user = users.find(u => u.id === id);
-      return user ? user.name : id;
-    });
-
+    const assigneeNames = Array.isArray(assignee) ? assignee : [assignee];
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
@@ -219,11 +208,6 @@ class WrikeBot extends TeamsActivityHandler {
 
 const bot = new WrikeBot();
 
-// Health check for browser/curl
-server.get('/', (req, res) => {
-  res.send(200, '✔️ Wrike Teams Bot is running!');
-});
-
 server.post('/api/messages', async (req, res) => {
   await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
@@ -260,13 +244,13 @@ server.get('/auth/callback', async (req, res) => {
         <html>
           <head><title>Success</title></head>
           <body style="text-align:center;font-family:sans-serif;">
-            <h2 style="color:green;"> Wrike login successful</h2>
+            <h2 style="color:green;">✅ Wrike login successful</h2>
             <p>Get Back to teams and re create the task ...</p>
             <a href="https://teams.microsoft.com" target="_blank" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#28a745;color:#fff;text-decoration:none;border-radius:5px;">Return to Teams</a>
           </body>
         </html>
       `);
-      return;
+      return; 
     }
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err?.response?.data || err.message);
