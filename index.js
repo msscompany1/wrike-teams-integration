@@ -113,7 +113,9 @@ class WrikeBot extends TeamsActivityHandler {
   const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
   const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
 
-  const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
+  const assigneeArray = typeof assignee === 'string' && assignee.includes(',')
+    ? assignee.split(',').map(id => id.trim())
+    : Array.isArray(assignee) ? assignee : [assignee];
   console.log('🔎 Assignee(s):', assignee);
   console.log('🔎 AssigneeArray:', assigneeArray);
 
