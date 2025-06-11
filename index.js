@@ -120,34 +120,43 @@ class WrikeBot extends TeamsActivityHandler {
   const users = await this.fetchWrikeUsers(wrikeToken);
   console.log('🔎 All Wrike Users:', users.map(u => u.id));
 
-  // Send task to Wrike
-  const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
-    title,
-    description,
-    importance,
-    status: "Active",
-    dates: { start: startDate, due: dueDate },
-    responsibles: assigneeArray,
-    parents: [location],
-    customFields: [
-      { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
-    ]
-  }, {
-    headers: { Authorization: `Bearer ${wrikeToken}` }
-  });
+  // ✅ POST TO WRIKE WITH ERROR HANDLING
+  let task, taskLink;
+  try {
+    console.log("🚀 Posting to Wrike with responsibles:", assigneeArray);
 
-  const task = response.data.data[0];
-  const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
+    const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
+      title,
+      description,
+      importance,
+      status: "Active",
+      dates: { start: startDate, due: dueDate },
+      responsibles: assigneeArray,
+      parents: [location],
+      customFields: [
+        { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
+      ]
+    }, {
+      headers: { Authorization: `Bearer ${wrikeToken}` }
+    });
 
-  // Map assignee IDs to names
-  let selectedUsers = users.filter(u => assigneeArray.includes(u.id));
-  console.log('🔎 Selected Users:', selectedUsers);
-
-  if (selectedUsers.length === 0) {
-    // fallback if no match
-    selectedUsers = assigneeArray.map(id => ({ name: id }));
+    task = response.data.data[0];
+    taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
+  } catch (err) {
+    console.error("❌ Wrike API Error:", err?.response?.data || err.message);
+    return {
+      task: {
+        type: 'message',
+        value: `❌ Failed to create task in Wrike.\n\n${err?.response?.data?.errorDescription || err.message}`
+      }
+    };
   }
 
+  // ✅ Map assignee IDs to names
+  let selectedUsers = users.filter(u => assigneeArray.includes(u.id));
+  if (selectedUsers.length === 0) {
+    selectedUsers = assigneeArray.map(id => ({ name: id }));
+  }
   const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`);
 
   const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
