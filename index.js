@@ -12,8 +12,8 @@ const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
 // ✅ HTTPS certificate setup
 const httpsOptions = {
-  key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/fullchain.pem')
+  key: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/ssl/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/wrike-bot.kashida-learning.co/ssl/fullchain.pem')
 };
 
 // ✅ Create HTTPS-enabled Restify server
