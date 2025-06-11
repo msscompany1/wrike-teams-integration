@@ -1,3 +1,4 @@
+// ✅ Enhanced index.js for Wrike Teams Bot
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -10,14 +11,11 @@ const { TeamsActivityHandler, CardFactory } = require('botbuilder');
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
-// ✅ HTTPS certificate setup
 const httpsOptions = {
   key: fs.readFileSync('/home/ubuntu/ssl/privkey.pem'),
   cert: fs.readFileSync('/home/ubuntu/ssl/fullchain.pem')
 };
 
-
-// ✅ Create HTTPS-enabled Restify server
 const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
@@ -115,13 +113,15 @@ class WrikeBot extends TeamsActivityHandler {
     const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
     const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
 
+    const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
+
     const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
       title,
       description,
       importance,
       status: "Active",
       dates: { start: startDate, due: dueDate },
-      responsibles: Array.isArray(assignee) ? assignee : [assignee],
+      responsibles: assigneeArray,
       parents: [location],
       customFields: [
         { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
@@ -132,7 +132,11 @@ class WrikeBot extends TeamsActivityHandler {
 
     const task = response.data.data[0];
     const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-    const assigneeNames = Array.isArray(assignee) ? assignee : [assignee];
+
+    const users = await this.fetchWrikeUsers(wrikeToken);
+    const selectedUsers = users.filter(u => assigneeArray.includes(u.id));
+    const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`);
+
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
@@ -158,7 +162,7 @@ class WrikeBot extends TeamsActivityHandler {
                     type: 'Column',
                     width: 'stretch',
                     items: [
-                      { type: 'TextBlock', text: `👥 **Assignees:** ${assigneeNames.join(', ')}`, wrap: true },
+                      { type: 'TextBlock', text: `👥 **Assignees:**\n${assigneeNames.join('\n')}`, wrap: true },
                       { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' },
                       { type: 'TextBlock', text: `📊 **Importance:** ${importance}`, wrap: true, spacing: 'Small' }
                     ]
