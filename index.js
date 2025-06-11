@@ -98,86 +98,99 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
-    const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
-    const wrikeToken = wrikeTokens.get(userId);
+  const userId = context.activity?.from?.aadObjectId || context.activity?.from?.id || "fallback-user";
+  const wrikeToken = wrikeTokens.get(userId);
 
-    if (!wrikeToken) {
-      return {
-        task: {
-          type: 'message',
-          value: '⚠️ You must login to Wrike before creating tasks. Please try again.'
-        }
-      };
-    }
-
-    const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
-    const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
-
-    const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
-
-    const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
-      title,
-      description,
-      importance,
-      status: "Active",
-      dates: { start: startDate, due: dueDate },
-      responsibles: assigneeArray,
-      parents: [location],
-      customFields: [
-        { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
-      ]
-    }, {
-      headers: { Authorization: `Bearer ${wrikeToken}` }
-    });
-
-    const task = response.data.data[0];
-    const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-
-    const users = await this.fetchWrikeUsers(wrikeToken);
-    const selectedUsers = users.filter(u => assigneeArray.includes(u.id));
-    const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`);
-
-    const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-
+  if (!wrikeToken) {
     return {
       task: {
-        type: 'continue',
-        value: {
-          title: 'Task Created',
-          height: 300,
-          width: 450,
-          card: CardFactory.adaptiveCard({
-            type: 'AdaptiveCard',
-            version: '1.5',
-            body: [
-              { type: 'TextBlock', text: '✅ Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
-              { type: 'TextBlock', text: `**${title}**`, size: 'Medium', wrap: true },
-              { type: 'TextBlock', text: '📌 Task Details', weight: 'Bolder', color: 'Accent', spacing: 'Medium' },
-              {
-                type: 'ColumnSet',
-                columns: [
-                  {
-                    type: 'Column',
-                    width: 'stretch',
-                    items: [
-                      { type: 'TextBlock', text: `👥 **Assignees:**\n${assigneeNames.join('\n')}`, wrap: true },
-                      { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' },
-                      { type: 'TextBlock', text: `📊 **Importance:** ${importance}`, wrap: true, spacing: 'Small' }
-                    ]
-                  }
-                ]
-              }
-            ],
-            actions: [
-              { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
-            ]
-          })
-        }
+        type: 'message',
+        value: '⚠️ You must login to Wrike before creating tasks. Please try again.'
       }
     };
   }
+
+  const { title, description, assignee, location, startDate, dueDate, status, importance, comment } = action.data;
+  const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
+
+  const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
+  console.log('🔎 Assignee(s):', assignee);
+  console.log('🔎 AssigneeArray:', assigneeArray);
+
+  const users = await this.fetchWrikeUsers(wrikeToken);
+  console.log('🔎 All Wrike Users:', users.map(u => u.id));
+
+  // Send task to Wrike
+  const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
+    title,
+    description,
+    importance,
+    status: "Active",
+    dates: { start: startDate, due: dueDate },
+    responsibles: assigneeArray,
+    parents: [location],
+    customFields: [
+      { id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }
+    ]
+  }, {
+    headers: { Authorization: `Bearer ${wrikeToken}` }
+  });
+
+  const task = response.data.data[0];
+  const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
+
+  // Map assignee IDs to names
+  let selectedUsers = users.filter(u => assigneeArray.includes(u.id));
+  console.log('🔎 Selected Users:', selectedUsers);
+
+  if (selectedUsers.length === 0) {
+    // fallback if no match
+    selectedUsers = assigneeArray.map(id => ({ name: id }));
+  }
+
+  const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`);
+
+  const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  return {
+    task: {
+      type: 'continue',
+      value: {
+        title: 'Task Created',
+        height: 300,
+        width: 450,
+        card: CardFactory.adaptiveCard({
+          type: 'AdaptiveCard',
+          version: '1.5',
+          body: [
+            { type: 'TextBlock', text: '✅ Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good', wrap: true },
+            { type: 'TextBlock', text: `**${title}**`, size: 'Medium', wrap: true },
+            { type: 'TextBlock', text: '📌 Task Details', weight: 'Bolder', color: 'Accent', spacing: 'Medium' },
+            {
+              type: 'ColumnSet',
+              columns: [
+                {
+                  type: 'Column',
+                  width: 'stretch',
+                  items: [
+                    { type: 'TextBlock', text: `👥 **Assignees:**\n${assigneeNames.join('\n')}`, wrap: true },
+                    { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true, spacing: 'Small' },
+                    { type: 'TextBlock', text: `📊 **Importance:** ${importance}`, wrap: true, spacing: 'Small' }
+                  ]
+                }
+              ]
+            }
+          ],
+          actions: [
+            { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
+          ]
+        })
+      }
+    }
+  };
+}
 
   async fetchWrikeUsers(token) {
     try {
