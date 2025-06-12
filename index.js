@@ -28,9 +28,10 @@ const httpsOptions = {
 const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
-server.listen(PORT, () => {
-  console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ HTTPS bot running on https://0.0.0.0:${PORT}`);
 });
+
 
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
@@ -131,7 +132,6 @@ class WrikeBot extends TeamsActivityHandler {
   const users = await this.fetchWrikeUsers(wrikeToken);
   console.log('🔎 All Wrike Users:', users.map(u => u.id));
 
-  // ✅ POST TO WRIKE WITH ERROR HANDLING
   let task, taskLink;
   try {
     console.log("🚀 Posting to Wrike with responsibles:", assigneeArray);
