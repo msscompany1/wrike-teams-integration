@@ -1,4 +1,6 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const execSync = require('child_process').execSync;
 try {
   const pid = execSync("lsof -ti tcp:3978").toString().trim();
@@ -9,8 +11,6 @@ try {
 } catch (e) {
   console.log("✅ No existing process on port 3978");
 }
-const fs = require('fs');
-const path = require('path');
 const restify = require('restify');
 const axios = require('axios');
 const https = require('https');
