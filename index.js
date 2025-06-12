@@ -1,5 +1,15 @@
 // ✅ Enhanced index.js for Wrike Teams Bot
 require('dotenv').config();
+const execSync = require('child_process').execSync;
+try {
+  const pid = execSync("lsof -ti tcp:3978").toString().trim();
+  if (pid) {
+    console.log(`🛑 Killing process on port 3978: ${pid}`);
+    execSync(`kill -9 ${pid}`);
+  }
+} catch (e) {
+  console.log("✅ No existing process on port 3978");
+}
 const fs = require('fs');
 const path = require('path');
 const restify = require('restify');
