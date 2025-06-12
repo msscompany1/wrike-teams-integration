@@ -1,4 +1,3 @@
-// ✅ Enhanced index.js for Wrike Teams Bot
 require('dotenv').config();
 const execSync = require('child_process').execSync;
 try {
