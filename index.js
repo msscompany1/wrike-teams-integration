@@ -1,16 +1,16 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const execSync = require('child_process').execSync;
-try {
-  const pid = execSync("lsof -ti tcp:3978").toString().trim();
-  if (pid) {
-    console.log(`🛑 Killing process on port 3978: ${pid}`);
-    execSync(`kill -9 ${pid}`);
-  }
-} catch (e) {
-  console.log("✅ No existing process on port 3978");
-}
+// const execSync = require('child_process').execSync;
+// try {
+//   const pid = execSync("lsof -ti tcp:3978").toString().trim();
+//   if (pid) {
+//     console.log(`🛑 Killing process on port 3978: ${pid}`);
+//     execSync(`kill -9 ${pid}`);
+//   }
+// } catch (e) {
+//   console.log("✅ No existing process on port 3978");
+// }
 const restify = require('restify');
 const axios = require('axios');
 const https = require('https');
