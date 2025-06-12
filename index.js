@@ -1,16 +1,7 @@
 require('dotenv').config();
+const execSync = require('child_process').execSync;
 const fs = require('fs');
 const path = require('path');
-// const execSync = require('child_process').execSync;
-// try {
-//   const pid = execSync("lsof -ti tcp:3978").toString().trim();
-//   if (pid) {
-//     console.log(`🛑 Killing process on port 3978: ${pid}`);
-//     execSync(`kill -9 ${pid}`);
-//   }
-// } catch (e) {
-//   console.log("✅ No existing process on port 3978");
-// }
 const restify = require('restify');
 const axios = require('axios');
 const https = require('https');
@@ -28,10 +19,9 @@ const httpsOptions = {
 const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ HTTPS bot running on https://0.0.0.0:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
 });
-
 
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
