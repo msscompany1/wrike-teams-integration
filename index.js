@@ -1,3 +1,5 @@
+
+// ✅ Fully fixed index.js with multiple assignee support
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -113,7 +115,11 @@ class WrikeBot extends TeamsActivityHandler {
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
     const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
-    const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
+    const assigneeArray = Array.isArray(assignee)
+      ? assignee
+      : (typeof assignee === 'string' && assignee.includes(','))
+        ? assignee.split(',').map(id => id.trim())
+        : [assignee];
     const users = await this.fetchWrikeUsers(wrikeToken);
     const validUserIds = users.map(u => u.id);
     const finalAssignees = assigneeArray.filter(id => validUserIds.includes(id));
