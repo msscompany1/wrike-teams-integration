@@ -1,5 +1,8 @@
 
-// ✅ Fully fixed index.js with multiple assignee support
+const killPort = require('kill-port');
+killPort(3978, 'tcp').then(() => {
+  console.log("✅ Cleared port 3978");
+}).catch(() => {});
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
