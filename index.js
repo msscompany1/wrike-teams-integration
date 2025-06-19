@@ -1,8 +1,11 @@
 
-const killPort = require('kill-port');
-killPort(3978, 'tcp').then(() => {
-  console.log("✅ Cleared port 3978");
-}).catch(() => {});
+try {
+  require('kill-port')(3978, 'tcp').then(() => {
+    console.log("✅ Cleared port 3978");
+  }).catch(() => {});
+} catch (e) {
+  console.warn("⚠️ kill-port not installed. Skipping port cleanup.");
+}
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
