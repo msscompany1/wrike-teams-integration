@@ -115,6 +115,21 @@ class WrikeBot extends TeamsActivityHandler {
     const teamsMessageLink = context.activity.value?.messagePayload?.linkToMessage || '';
     const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
     const users = await this.fetchWrikeUsers(wrikeToken);
+    const validUserIds = users.map(u => u.id);
+    const finalAssignees = assigneeArray.filter(id => validUserIds.includes(id));
+
+    console.log("🔍 Submitted assignees:", assigneeArray);
+    console.log("✅ Valid Wrike users:", validUserIds);
+    console.log("🧾 Final Assignees to send:", finalAssignees);
+
+    if (finalAssignees.length === 0) {
+      return {
+        task: {
+          type: 'message',
+          value: '❌ The selected assignee is not a valid Wrike user. Please try again.'
+        }
+      };
+    }
 
     try {
       const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
@@ -123,7 +138,7 @@ class WrikeBot extends TeamsActivityHandler {
         importance,
         status: "Active",
         dates: { start: startDate, due: dueDate },
-        responsibles: assigneeArray,
+        responsibles: finalAssignees,
         parents: [location],
         customFields: [{ id: CUSTOM_FIELD_ID_TEAMS_LINK, value: teamsMessageLink }]
       }, {
@@ -131,7 +146,7 @@ class WrikeBot extends TeamsActivityHandler {
       });
 
       const task = response.data.data[0];
-      const selectedUsers = users.filter(u => assigneeArray.includes(u.id));
+      const selectedUsers = users.filter(u => finalAssignees.includes(u.id));
       const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`).join('\n');
       const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
       const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
@@ -211,7 +226,6 @@ server.post('/api/messages', async (req, res) => {
     await bot.run(context);
   });
 });
-
 
 server.get('/auth/callback', async (req, res) => {
   try {
