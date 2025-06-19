@@ -174,27 +174,30 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
-  async fetchWrikeUsers(token) {
-    const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { deleted: false }
-    });
+  async fetchWrikeUsers() {
+    try {
+        const response = await axios.get('https://www.wrike.com/api/v4/contacts', {
+            headers: {
+                Authorization: `Bearer ${this.wrikeAccessToken}`,
+            },
+        });
 
-    return res.data.data
-      .filter(u => {
-        const profile = u.profiles?.[0];
-        return (
-          profile &&
-          ['User', 'Owner', 'Admin'].includes(profile.role) &&
-          typeof profile.email === 'string' &&
-          !profile.email.includes('wrike-robot')
+        const users = response.data.data;
+        // Filter users with valid types and enabled status
+        const filteredUsers = users.filter((user) =>
+            user.type &&
+            ['User', 'Admin', 'Owner'].includes(user.type) &&
+            user.profile?.email &&
+            user.profile?.accountId === this.accountId &&  // Ensure they're in your account
+            user.status === 'Active'
         );
-      })
-      .map(u => ({
-        id: u.id,
-        name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email})`
-      }));
-  }
+
+        return filteredUsers;
+    } catch (error) {
+        console.error('❌ Failed to fetch Wrike users:', error.message);
+        return [];
+    }
+}
 
   async fetchWrikeProjects(token) {
     const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
