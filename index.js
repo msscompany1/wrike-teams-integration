@@ -188,21 +188,26 @@ class WrikeBot extends TeamsActivityHandler {
   }
 
   async fetchWrikeUsers(token) {
-    const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { deleted: false }
-    });
+  const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { deleted: false }
+  });
 
-    return res.data.data
-      .filter(u => {
-        const profile = u.profiles?.[0];
-        return profile && profile.role !== 'Collaborator' && !profile.email.includes('wrike-robot');
-      })
-      .map(u => ({
-        id: u.id,
-        name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email})`
-      }));
-  }
+  return res.data.data
+    .filter(u => {
+      const profile = u.profiles?.[0];
+      return (
+        profile &&
+        ['User', 'Owner', 'Admin'].includes(profile.role) &&
+        typeof profile.email === 'string' &&
+        !profile.email.includes('wrike-robot')
+      );
+    })
+    .map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email})`
+    }));
+}
 
   async fetchWrikeProjects(token) {
     const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
