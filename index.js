@@ -60,7 +60,7 @@ class WrikeBot extends TeamsActivityHandler {
             card: CardFactory.adaptiveCard({
               type: 'AdaptiveCard',
               version: '1.5',
-              body: [{ type: 'TextBlock', text: 'To continue, please login to your Wrike account.', wrap: true }],
+              body: [{ type: 'TextBlock', text: 'Please login to your Wrike account.', wrap: true }],
               actions: [{ type: 'Action.OpenUrl', title: 'Login to Wrike', url: loginUrl }]
             })
           }
@@ -106,7 +106,7 @@ class WrikeBot extends TeamsActivityHandler {
       return {
         task: {
           type: 'message',
-          value: '⚠️ You must login to Wrike before creating tasks. Please try again.'
+          value: '⚠️ Please login to Wrike first.'
         }
       };
     }
@@ -116,7 +116,6 @@ class WrikeBot extends TeamsActivityHandler {
     const assigneeArray = Array.isArray(assignee) ? assignee : [assignee];
     const users = await this.fetchWrikeUsers(wrikeToken);
 
-    let task;
     try {
       const response = await axios.post('https://www.wrike.com/api/v4/tasks', {
         title,
@@ -131,7 +130,39 @@ class WrikeBot extends TeamsActivityHandler {
         headers: { Authorization: `Bearer ${wrikeToken}` }
       });
 
-      task = response.data.data[0];
+      const task = response.data.data[0];
+      const selectedUsers = users.filter(u => assigneeArray.includes(u.id));
+      const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`).join('\n');
+      const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
+      const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+      return {
+        task: {
+          type: 'continue',
+          value: {
+            title: '✅ Task Created',
+            height: 350,
+            width: 500,
+            card: CardFactory.adaptiveCard({
+              type: 'AdaptiveCard',
+              version: '1.5',
+              body: [
+                { type: 'TextBlock', text: '🎉 Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good' },
+                { type: 'TextBlock', text: `**${title}**`, wrap: true },
+                { type: 'TextBlock', text: 'Details:', weight: 'Bolder', spacing: 'Medium' },
+                { type: 'TextBlock', text: `📅 Due Date: ${formattedDueDate}`, wrap: true },
+                { type: 'TextBlock', text: `👥 Assignees:\n${assigneeNames}`, wrap: true },
+                { type: 'TextBlock', text: `📊 Importance: ${importance}`, wrap: true }
+              ],
+              actions: [
+                { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
+              ]
+            })
+          }
+        }
+      };
     } catch (err) {
       console.error("❌ Wrike API Error:", err?.response?.data || err.message);
       return {
@@ -141,73 +172,29 @@ class WrikeBot extends TeamsActivityHandler {
         }
       };
     }
-
-    const selectedUsers = users.filter(u => assigneeArray.includes(u.id));
-    const assigneeNames = selectedUsers.map(u => `👤 ${u.name}`);
-    const taskLink = `https://www.wrike.com/open.htm?id=${task.id}`;
-    const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-
-    return {
-      task: {
-        type: 'continue',
-        value: {
-          title: 'Task Created',
-          height: 300,
-          width: 450,
-          card: CardFactory.adaptiveCard({
-            type: 'AdaptiveCard',
-            version: '1.5',
-            body: [
-              { type: 'TextBlock', text: '✅ Task Created Successfully!', weight: 'Bolder', size: 'Large', color: 'Good' },
-              { type: 'TextBlock', text: `**${title}**`, size: 'Medium', wrap: true },
-              { type: 'TextBlock', text: '📌 Task Details', weight: 'Bolder', color: 'Accent', spacing: 'Medium' },
-              {
-                type: 'ColumnSet',
-                columns: [
-                  {
-                    type: 'Column',
-                    width: 'stretch',
-                    items: [
-                      { type: 'TextBlock', text: `👥 **Assignees:**\n${assigneeNames.join('\n')}`, wrap: true },
-                      { type: 'TextBlock', text: `📅 **Due Date:** ${formattedDueDate}`, wrap: true },
-                      { type: 'TextBlock', text: `📊 **Importance:** ${importance}`, wrap: true }
-                    ]
-                  }
-                ]
-              }
-            ],
-            actions: [
-              { type: 'Action.OpenUrl', title: '🔗 View Task in Wrike', url: taskLink }
-            ]
-          })
-        }
-      }
-    };
   }
 
   async fetchWrikeUsers(token) {
-  const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
-    headers: { Authorization: `Bearer ${token}` },
-    params: { deleted: false }
-  });
+    const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { deleted: false }
+    });
 
-  return res.data.data
-    .filter(u => {
-      const profile = u.profiles?.[0];
-      return (
-        profile &&
-        ['User', 'Owner', 'Admin'].includes(profile.role) &&
-        typeof profile.email === 'string' &&
-        !profile.email.includes('wrike-robot')
-      );
-    })
-    .map(u => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email})`
-    }));
-}
+    return res.data.data
+      .filter(u => {
+        const profile = u.profiles?.[0];
+        return (
+          profile &&
+          ['User', 'Owner', 'Admin'].includes(profile.role) &&
+          typeof profile.email === 'string' &&
+          !profile.email.includes('wrike-robot')
+        );
+      })
+      .map(u => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email})`
+      }));
+  }
 
   async fetchWrikeProjects(token) {
     const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
@@ -219,7 +206,7 @@ class WrikeBot extends TeamsActivityHandler {
 
 const bot = new WrikeBot();
 
-server.post('/api/messages', (req, res, next) => {
+server.post('/api/messages', (req, res) => {
   adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
   });
@@ -228,7 +215,6 @@ server.post('/api/messages', (req, res, next) => {
 server.get('/auth/callback', async (req, res) => {
   try {
     const { code, state: userId } = req.query;
-
     const response = await axios.post('https://login.wrike.com/oauth2/token', null, {
       params: {
         grant_type: 'authorization_code',
@@ -244,12 +230,12 @@ server.get('/auth/callback', async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(`
       <html>
-        <head><title>Success</title></head>
+        <head><title>Login Success</title></head>
         <body style="text-align:center;font-family:sans-serif;">
           <h2 style="color:green;">✅ Wrike login successful</h2>
-          <p>Return to Microsoft Teams and continue.</p>
+          <p>You can now return to Microsoft Teams.</p>
           <a href="https://teams.microsoft.com" target="_blank"
-            style="display:inline-block;margin-top:20px;padding:10px 20px;background:#28a745;color:#fff;text-decoration:none;border-radius:5px;">
+             style="padding:10px 20px;background:#0078d4;color:white;text-decoration:none;border-radius:5px;">
             Return to Teams
           </a>
         </body>
