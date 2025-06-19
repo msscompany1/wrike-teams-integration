@@ -18,10 +18,24 @@ const httpsOptions = {
 
 const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
+const net = require('net');
 
-server.listen(PORT, () => {
-  console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
+const checkPort = (port) => new Promise((resolve, reject) => {
+  const tester = net.createServer()
+    .once('error', err => (err.code === 'EADDRINUSE' ? reject(err) : resolve()))
+    .once('listening', () => tester.once('close', () => resolve()).close())
+    .listen(port);
 });
+
+checkPort(PORT).then(() => {
+  server.listen(PORT, () => {
+    console.log(`✅ HTTPS bot running on https://wrike-bot.kashida-learning.co:${PORT}`);
+  });
+}).catch(err => {
+  console.error(`❌ Port ${PORT} already in use. Exiting.`);
+  process.exit(1);
+});
+
 
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
