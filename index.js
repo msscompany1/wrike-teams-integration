@@ -24,7 +24,6 @@ const restify = require('restify');
 const axios = require('axios');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
-
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
@@ -37,7 +36,28 @@ const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
 const wrikeTokens = new Map();
-
+async function refreshWrikeToken(userId) {
+  const creds = wrikeTokens.get(userId);
+  if (!creds?.refreshToken) {
+    throw new Error('No refresh token available');
+  }
+  const resp = await axios.post('https://login.wrike.com/oauth2/token', null, {
+    params: {
+      grant_type:    'refresh_token',
+      refresh_token: creds.refreshToken,
+      client_id:     process.env.WRIKE_CLIENT_ID,
+      client_secret: process.env.WRIKE_CLIENT_SECRET,
+    }
+  });
+  // update stored tokens + expiry
+  const expiresAt = Date.now() + (resp.data.expires_in * 1000);
+  wrikeTokens.set(userId, {
+    accessToken:  resp.data.access_token,
+    refreshToken: resp.data.refresh_token,
+    expiresAt,
+  });
+  return resp.data.access_token;
+}
 // Ensure port is free before starting
 const checkPort = (port) => new Promise((resolve, reject) => {
   const tester = net.createServer()
