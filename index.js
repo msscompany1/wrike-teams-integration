@@ -84,7 +84,26 @@ const conversationState = new ConversationState(memoryStorage);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const token = wrikeTokens.get(userId);
+    const creds = wrikeTokens.get(userId);
+const token = creds?.accessToken;
+if (!token) {
+  console.warn(`⚠ No token found for user ${userId}`);
+  const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+  return {
+    task: {
+      type: 'continue',
+      value: {
+        title: 'Login to Wrike Required',
+        card: CardFactory.adaptiveCard({
+          type: 'AdaptiveCard',
+          version: '1.5',
+          body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }],
+          actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+        })
+      }
+    }
+  };
+}
     if (!token) {
       const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
       return {
@@ -118,7 +137,8 @@ class WrikeBot extends TeamsActivityHandler {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const token = wrikeTokens.get(userId);
+    const creds = wrikeTokens.get(userId);
+const token = creds?.accessToken;
     if (!token) return { task: { type: 'message', value: '⚠️ Please login to Wrike.' } };
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
