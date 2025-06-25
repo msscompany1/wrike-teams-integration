@@ -101,8 +101,8 @@ class WrikeBot extends TeamsActivityHandler {
     // Fetch users and projects
     let users, folders;
     try {
-      users = await this.fetchWrikeUsers(token);
-      folders = await this.fetchWrikeProjects(token);
+      users = await this.fetchWrikeUsers(token, userId);
+      folders = await this.fetchWrikeProjects(token, userId);
     } catch (e) {
       console.error('❌ Fetch error:', e.message);
       return { task: { type: 'message', value: '⚠️ Unable to load Wrike data. Please re-authenticate.' } };
@@ -125,7 +125,7 @@ class WrikeBot extends TeamsActivityHandler {
     const link = context.activity.value?.messagePayload?.linkToMessage || '';
 
     let users;
-    try { users = await this.fetchWrikeUsers(token); }
+    try { users = await this.fetchWrikeUsers(token, userId); }
     catch (e) { console.error('❌ User fetch error:', e.message); return { task: { type: 'message', value: '⚠️ Error fetching Wrike users. Please re-login.' } }; }
 
     const arr = Array.isArray(assignee) ? assignee : (typeof assignee === 'string' && assignee.includes(',')) ? assignee.split(',').map(i => i.trim()) : [assignee];
@@ -145,7 +145,7 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
-  async fetchWrikeUsers(token) {
+  async fetchWrikeUsers(token, userId) {
     try {
       const res = await axios.get('https://www.wrike.com/api/v4/contacts', { headers: { Authorization: `Bearer ${token}` }, params: { deleted: false } });
       return res.data.data.filter(u => { const p = u.profiles?.[0]; return p && ['User','Owner','Admin'].includes(p.role) && typeof p.email==='string' && !p.email.includes('wrike-robot'); }).map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email||''})` }));
@@ -155,7 +155,7 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
-  async fetchWrikeProjects(token) {
+  async fetchWrikeProjects(token, userId) {
     try {
       const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', { headers: { Authorization: `Bearer ${token}` } });
       return res.data.data.filter(p => p.project).map(p => ({ id: p.id, title: p.title }));
@@ -184,7 +184,12 @@ server.get('/auth/callback', async (req, res) => {
   try {
     const { code, state: userId } = req.query;
     const tr = await axios.post('https://login.wrike.com/oauth2/token', null, { params: { grant_type: 'authorization_code', code, client_id: process.env.WRIKE_CLIENT_ID, client_secret: process.env.WRIKE_CLIENT_SECRET, redirect_uri: process.env.WRIKE_REDIRECT_URI } });
-    wrikeTokens.set(userId, tr.data.access_token);
+    const expiresAt = Date.now() + (tr.data.expires_in * 1000);
+    wrikeTokens.set(userId, {
+      accessToken: tr.data.access_token,
+      refreshToken: tr.data.refresh_token,
+      expiresAt
+    });
     res.writeHead(200, {'Content-Type':'text/html'});
     res.end(`<html><body style="text-align:center;font-family:sans-serif;"><h2 style="color:green;">✅ Wrike login successful</h2><a href="https://teams.microsoft.com">Return to Teams</a></body></html>`);
   } catch (err) {
