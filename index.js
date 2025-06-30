@@ -118,14 +118,27 @@ if (!token) {
     const descField = cardJson.body.find(f => f.id === 'description'); if (descField) descField.value = plain;
 
     // Fetch users and projects
-    let users, folders;
-    try {
-      users = await this.fetchWrikeUsers(token, userId);
-      folders = await this.fetchWrikeProjects(token, userId);
-    } catch (e) {
-      console.error('❌ Fetch error:', e.message);
-      return { task: { type: 'message', value: '⚠️ Unable to load Wrike data. Please re-authenticate.' } };
+    let users = await this.fetchWrikeUsers(token, userId);
+let folders = await this.fetchWrikeProjects(token, userId);
+
+if (!users || !folders) {
+  console.warn(`⚠ Wrike token expired for user ${userId}, prompting login`);
+  const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+  return {
+    task: {
+      type: 'continue',
+      value: {
+        title: 'Login to Wrike Required',
+        card: CardFactory.adaptiveCard({
+          type: 'AdaptiveCard',
+          version: '1.5',
+          body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
+          actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+        })
+      }
     }
+  };
+}
 
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) userDropdown.choices = users.map(u => ({ title: u.name, value: u.id }));
@@ -138,7 +151,7 @@ if (!token) {
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
     const creds = wrikeTokens.get(userId);
-const token = creds?.accessToken;
+  const token = creds?.accessToken;
     if (!token) return { task: { type: 'message', value: '⚠️ Please login to Wrike.' } };
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
@@ -170,7 +183,7 @@ const token = creds?.accessToken;
       const res = await axios.get('https://www.wrike.com/api/v4/contacts', { headers: { Authorization: `Bearer ${token}` }, params: { deleted: false } });
       return res.data.data.filter(u => { const p = u.profiles?.[0]; return p && ['User','Owner','Admin'].includes(p.role) && typeof p.email==='string' && !p.email.includes('wrike-robot'); }).map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email||''})` }));
     } catch (err) {
-      if (err.response?.status === 401) throw new Error('Wrike token expired');
+      if (err.response?.status === 401) return null;
       throw err;
     }
   }
@@ -180,7 +193,7 @@ const token = creds?.accessToken;
       const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', { headers: { Authorization: `Bearer ${token}` } });
       return res.data.data.filter(p => p.project).map(p => ({ id: p.id, title: p.title }));
     } catch (err) {
-      if (err.response?.status === 401) throw new Error('Wrike token expired');
+      if (err.response?.status === 401) return null;
       throw err;
     }
   }
@@ -211,7 +224,17 @@ server.get('/auth/callback', async (req, res) => {
       expiresAt
     });
     res.writeHead(200, {'Content-Type':'text/html'});
-    res.end(`<html><body style="text-align:center;font-family:sans-serif;"><h2 style="color:green;">✅ Wrike login successful</h2><a href="https://teams.microsoft.com">Return to Teams</a></body></html>`);
+    res.end(`
+      <html>
+        <body style="text-align:center;font-family:sans-serif;padding:40px;">
+          <h2 style="color:green;">✅ You have successfully logged in to Wrike</h2>
+          <p style="margin-top:20px;">You may now return to Microsoft Teams to continue your task.</p>
+          <a href="https://teams.microsoft.com" style="display:inline-block;margin-top:30px;padding:10px 20px;background-color:#6264A7;color:white;text-decoration:none;border-radius:5px;">
+            Open Microsoft Teams
+          </a>
+        </body>
+      </html>
+    `);
   } catch (err) {
     console.error('❌ OAuth Callback Error:', err.response?.data||err.message);
     res.writeHead(500,{'Content-Type':'text/plain'});
