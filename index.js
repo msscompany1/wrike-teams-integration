@@ -227,7 +227,7 @@ server.get('/auth/callback', async (req, res) => {
     res.end(`
       <html>
         <body style="text-align:center;font-family:sans-serif;padding:40px;">
-          <h2 style="color:green;">✅ You have successfully logged in to Wrike</h2>
+          <h2 style="color:green;">You have successfully logged in to Wrike</h2>
           <p style="margin-top:20px;">You may now return to Microsoft Teams to continue your task.</p>
           <a href="https://teams.microsoft.com" style="display:inline-block;margin-top:30px;padding:10px 20px;background-color:#6264A7;color:white;text-decoration:none;border-radius:5px;">
             Open Microsoft Teams
