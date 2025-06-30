@@ -151,8 +151,31 @@ if (!users || !folders) {
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
     const creds = wrikeTokens.get(userId);
-  const token = creds?.accessToken;
-    if (!token) return { task: { type: 'message', value: '⚠️ Please login to Wrike.' } };
+let token = creds?.accessToken;
+
+if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
+  console.warn(`⚠ Token expired or missing for user ${userId}`);
+  try {
+    token = await refreshWrikeToken(userId);
+  } catch (e) {
+    console.error('❌ Token refresh failed:', e.message);
+    const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          title: 'Login to Wrike Required',
+          card: CardFactory.adaptiveCard({
+            type: 'AdaptiveCard',
+            version: '1.5',
+            body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
+            actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+          })
+        }
+      }
+    };
+  }
+}
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
     const link = context.activity.value?.messagePayload?.linkToMessage || '';
