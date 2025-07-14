@@ -245,7 +245,7 @@ server.get('/auth/callback', async (req, res) => {
 
     const expiresAt = Date.now() + (tr.data.expires_in * 1000);
 
-    await wrikeDB.saveToken(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
+    await wrikeDB.saveTokens(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
 
     wrikeTokens.set(userId, {
       accessToken: tr.data.access_token,
