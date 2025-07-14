@@ -1,4 +1,4 @@
-const wrikeDB = require('./wrike-db'); // <-- FIX: Import wrikeDB here
+const wrikeDB = require('./wrike-db'); // <-- Make sure this is present
 
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Promise Rejection:', reason);
@@ -36,8 +36,9 @@ const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
 const wrikeTokens = new Map();
+
 async function refreshWrikeToken(userId) {
-  const creds = wrikeTokens.get(userId);
+  let creds = await getUserToken(userId);
   if (!creds?.refreshToken) {
     throw new Error('No refresh token available');
   }
@@ -55,8 +56,28 @@ async function refreshWrikeToken(userId) {
     refreshToken: resp.data.refresh_token,
     expiresAt,
   });
+  // Save the new tokens
+  wrikeDB.saveTokens(userId, resp.data.access_token, resp.data.refresh_token, expiresAt);
   return resp.data.access_token;
 }
+
+// NEW: Always try in-memory first, then DB
+async function getUserToken(userId) {
+  let creds = wrikeTokens.get(userId);
+  if (creds) return creds;
+  // Try to load from DB if not in memory
+  return new Promise((resolve) => {
+    wrikeDB.loadTokens(userId, (tokens) => {
+      if (tokens) {
+        wrikeTokens.set(userId, tokens); // cache in memory
+        resolve(tokens);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
 const checkPort = (port) => new Promise((resolve, reject) => {
   const tester = net.createServer()
     .once('error', err => (err.code === 'EADDRINUSE' ? reject(err) : resolve()))
@@ -82,7 +103,8 @@ const conversationState = new ConversationState(memoryStorage);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const creds = wrikeTokens.get(userId);
+    // Updated: Try to get from DB if not in memory
+    const creds = await getUserToken(userId);
     const token = creds?.accessToken;
     if (!token) {
       console.warn(`⚠ No token found for user ${userId}`);
@@ -140,7 +162,8 @@ class WrikeBot extends TeamsActivityHandler {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const creds = wrikeTokens.get(userId);
+    // Updated: Try to get from DB if not in memory
+    let creds = await getUserToken(userId);
     let token = creds?.accessToken;
 
     if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
