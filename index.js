@@ -36,8 +36,7 @@ server.use(restify.plugins.queryParser());
 
 const wrikeTokens = new Map();
 async function refreshWrikeToken(userId) {
-  let creds = wrikeTokens.get(userId);
-    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
+  const creds = wrikeTokens.get(userId);
   if (!creds?.refreshToken) {
     throw new Error('No refresh token available');
   }
@@ -82,8 +81,7 @@ const conversationState = new ConversationState(memoryStorage);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    let creds = wrikeTokens.get(userId);
-    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
+    const creds = wrikeTokens.get(userId);
 const token = creds?.accessToken;
 if (!token) {
   console.warn(`⚠ No token found for user ${userId}`);
@@ -147,8 +145,7 @@ if (!users || !folders) {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    let creds = wrikeTokens.get(userId);
-    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
+    const creds = wrikeTokens.get(userId);
 let token = creds?.accessToken;
 
 if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
@@ -236,14 +233,27 @@ server.post('/api/messages',
 server.get('/auth/callback', async (req, res) => {
   try {
     const { code, state: userId } = req.query;
-    const tr = await axios.post('https://login.wrike.com/oauth2/token', null, { params: { grant_type: 'authorization_code', code, client_id: process.env.WRIKE_CLIENT_ID, client_secret: process.env.WRIKE_CLIENT_SECRET, redirect_uri: process.env.WRIKE_REDIRECT_URI } });
+    const tr = await axios.post('https://login.wrike.com/oauth2/token', null, {
+      params: {
+        grant_type: 'authorization_code',
+        code,
+        client_id: process.env.WRIKE_CLIENT_ID,
+        client_secret: process.env.WRIKE_CLIENT_SECRET,
+        redirect_uri: process.env.WRIKE_REDIRECT_URI
+      }
+    });
+
     const expiresAt = Date.now() + (tr.data.expires_in * 1000);
+
+    await wrikeDB.saveToken(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
+
     wrikeTokens.set(userId, {
       accessToken: tr.data.access_token,
       refreshToken: tr.data.refresh_token,
       expiresAt
     });
-    res.writeHead(200, {'Content-Type':'text/html'});
+
+    res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(`
       <html>
         <body style="text-align:center;font-family:sans-serif;padding:40px;">
@@ -256,8 +266,8 @@ server.get('/auth/callback', async (req, res) => {
       </html>
     `);
   } catch (err) {
-    console.error('❌ OAuth Callback Error:', err.response?.data||err.message);
-    res.writeHead(500,{'Content-Type':'text/plain'});
+    console.error('❌ OAuth Callback Error:', err.response?.data || err.message);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('❌ Authorization failed');
   }
 });
