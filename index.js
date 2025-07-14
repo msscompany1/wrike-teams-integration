@@ -1,4 +1,5 @@
-const { saveTokens, loadTokens } = require('./wrike-db');
+const wrikeDB = require('./wrike-db'); // <-- FIX: Import wrikeDB here
+
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Promise Rejection:', reason);
 });
@@ -82,29 +83,23 @@ class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
     const creds = wrikeTokens.get(userId);
-const token = creds?.accessToken;
-if (!token) {
-  console.warn(`⚠ No token found for user ${userId}`);
-  const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
-  return {
-    task: {
-      type: 'continue',
-      value: {
-        title: 'Login to Wrike Required',
-        card: CardFactory.adaptiveCard({
-          type: 'AdaptiveCard',
-          version: '1.5',
-          body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }],
-          actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
-        })
-      }
-    }
-  };
-}
+    const token = creds?.accessToken;
     if (!token) {
+      console.warn(`⚠ No token found for user ${userId}`);
       const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
       return {
-        task: { type: 'continue', value: { title: 'Login to Wrike Required', card: CardFactory.adaptiveCard({ type: 'AdaptiveCard', version: '1.5', body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }], actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }] }) } }
+        task: {
+          type: 'continue',
+          value: {
+            title: 'Login to Wrike Required',
+            card: CardFactory.adaptiveCard({
+              type: 'AdaptiveCard',
+              version: '1.5',
+              body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }],
+              actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+            })
+          }
+        }
       };
     }
 
@@ -114,26 +109,26 @@ if (!token) {
     const descField = cardJson.body.find(f => f.id === 'description'); if (descField) descField.value = plain;
 
     let users = await this.fetchWrikeUsers(token, userId);
-let folders = await this.fetchWrikeProjects(token, userId);
+    let folders = await this.fetchWrikeProjects(token, userId);
 
-if (!users || !folders) {
-  console.warn(`⚠ Wrike token expired for user ${userId}, prompting login`);
-  const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
-  return {
-    task: {
-      type: 'continue',
-      value: {
-        title: 'Login to Wrike Required',
-        card: CardFactory.adaptiveCard({
-          type: 'AdaptiveCard',
-          version: '1.5',
-          body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
-          actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
-        })
-      }
+    if (!users || !folders) {
+      console.warn(`⚠ Wrike token expired for user ${userId}, prompting login`);
+      const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+      return {
+        task: {
+          type: 'continue',
+          value: {
+            title: 'Login to Wrike Required',
+            card: CardFactory.adaptiveCard({
+              type: 'AdaptiveCard',
+              version: '1.5',
+              body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
+              actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+            })
+          }
+        }
+      };
     }
-  };
-}
 
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) userDropdown.choices = users.map(u => ({ title: u.name, value: u.id }));
@@ -146,31 +141,31 @@ if (!users || !folders) {
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
     const creds = wrikeTokens.get(userId);
-let token = creds?.accessToken;
+    let token = creds?.accessToken;
 
-if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
-  console.warn(`⚠ Token expired or missing for user ${userId}`);
-  try {
-    token = await refreshWrikeToken(userId);
-  } catch (e) {
-    console.error('❌ Token refresh failed:', e.message);
-    const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
-    return {
-      task: {
-        type: 'continue',
-        value: {
-          title: 'Login to Wrike Required',
-          card: CardFactory.adaptiveCard({
-            type: 'AdaptiveCard',
-            version: '1.5',
-            body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
-            actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
-          })
-        }
+    if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
+      console.warn(`⚠ Token expired or missing for user ${userId}`);
+      try {
+        token = await refreshWrikeToken(userId);
+      } catch (e) {
+        console.error('❌ Token refresh failed:', e.message);
+        const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+        return {
+          task: {
+            type: 'continue',
+            value: {
+              title: 'Login to Wrike Required',
+              card: CardFactory.adaptiveCard({
+                type: 'AdaptiveCard',
+                version: '1.5',
+                body: [{ type: 'TextBlock', text: '⚠️ Your Wrike session expired. Please login again.', wrap: true }],
+                actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+              })
+            }
+          }
+        };
       }
-    };
-  }
-}
+    }
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
     const link = context.activity.value?.messagePayload?.linkToMessage || '';
