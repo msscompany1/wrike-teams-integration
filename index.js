@@ -1,4 +1,4 @@
-// ✅ Global crash protection for production
+const wrikeDB = require('./wrike-db');
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Promise Rejection:', reason);
 });
@@ -6,7 +6,6 @@ process.on('uncaughtException', (err) => {
   console.error('💥 Uncaught Exception:', err);
 });
 
-// ✅ Auto-clear port 3978
 try {
   require('kill-port')(3978, 'tcp')
     .then(() => console.log('✅ Cleared port 3978 before startup'))
@@ -37,7 +36,8 @@ server.use(restify.plugins.queryParser());
 
 const wrikeTokens = new Map();
 async function refreshWrikeToken(userId) {
-  const creds = wrikeTokens.get(userId);
+  let creds = wrikeTokens.get(userId);
+    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
   if (!creds?.refreshToken) {
     throw new Error('No refresh token available');
   }
@@ -49,7 +49,6 @@ async function refreshWrikeToken(userId) {
       client_secret: process.env.WRIKE_CLIENT_SECRET,
     }
   });
-  // update stored tokens + expiry
   const expiresAt = Date.now() + (resp.data.expires_in * 1000);
   wrikeTokens.set(userId, {
     accessToken:  resp.data.access_token,
@@ -58,7 +57,6 @@ async function refreshWrikeToken(userId) {
   });
   return resp.data.access_token;
 }
-// Ensure port is free before starting
 const checkPort = (port) => new Promise((resolve, reject) => {
   const tester = net.createServer()
     .once('error', err => (err.code === 'EADDRINUSE' ? reject(err) : resolve()))
@@ -84,7 +82,8 @@ const conversationState = new ConversationState(memoryStorage);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const creds = wrikeTokens.get(userId);
+    let creds = wrikeTokens.get(userId);
+    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
 const token = creds?.accessToken;
 if (!token) {
   console.warn(`⚠ No token found for user ${userId}`);
@@ -111,13 +110,11 @@ if (!token) {
       };
     }
 
-    // Prepare task form
     const html = context.activity.value?.messagePayload?.body?.content || '';
     const plain = html.replace(/<[^>]+>/g, '').trim();
     const cardJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'cards', 'taskFormCard.json'), 'utf8'));
     const descField = cardJson.body.find(f => f.id === 'description'); if (descField) descField.value = plain;
 
-    // Fetch users and projects
     let users = await this.fetchWrikeUsers(token, userId);
 let folders = await this.fetchWrikeProjects(token, userId);
 
@@ -150,7 +147,8 @@ if (!users || !folders) {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    const creds = wrikeTokens.get(userId);
+    let creds = wrikeTokens.get(userId);
+    if (!creds) { creds = await wrikeDB.getToken(userId); if (creds) wrikeTokens.set(userId, creds); }
 let token = creds?.accessToken;
 
 if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
@@ -224,15 +222,14 @@ if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
 
 const bot = new WrikeBot();
 server.post('/api/messages',
-  // callback style handler: (req, res, next)
   (req, res, next) => {
     adapter.processActivity(req, res, async (context) => {
      await bot.run(context);
    })
-     .then(() => next())            // signal Restify we’re done
+     .then(() => next())            
     .catch(err => {
       console.error('💥 processActivity error:', err);
-      next(err);                   // propagate error to Restify
+      next(err);                   
     });
   }
  );
