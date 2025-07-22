@@ -56,20 +56,17 @@ async function refreshWrikeToken(userId) {
     refreshToken: resp.data.refresh_token,
     expiresAt,
   });
-  // Save the new tokens
   wrikeDB.saveTokens(userId, resp.data.access_token, resp.data.refresh_token, expiresAt);
   return resp.data.access_token;
 }
 
-// NEW: Always try in-memory first, then DB
 async function getUserToken(userId) {
   let creds = wrikeTokens.get(userId);
   if (creds) return creds;
-  // Try to load from DB if not in memory
   return new Promise((resolve) => {
     wrikeDB.loadTokens(userId, (tokens) => {
       if (tokens) {
-        wrikeTokens.set(userId, tokens); // cache in memory
+        wrikeTokens.set(userId, tokens);
         resolve(tokens);
       } else {
         resolve(null);
@@ -103,26 +100,30 @@ const conversationState = new ConversationState(memoryStorage);
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    // Updated: Try to get from DB if not in memory
     const creds = await getUserToken(userId);
-    const token = creds?.accessToken;
-    if (!token) {
-      console.warn(`⚠ No token found for user ${userId}`);
-      const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
-      return {
-        task: {
-          type: 'continue',
-          value: {
-            title: 'Login to Wrike Required',
-            card: CardFactory.adaptiveCard({
-              type: 'AdaptiveCard',
-              version: '1.5',
-              body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }],
-              actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
-            })
+    const buffer = 5 * 60 * 1000;
+    let token = creds?.accessToken;
+
+    if (!token || (creds.expiresAt && creds.expiresAt - Date.now() < buffer)) {
+      try {
+        token = await refreshWrikeToken(userId);
+      } catch (e) {
+        const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
+        return {
+          task: {
+            type: 'continue',
+            value: {
+              title: 'Login to Wrike Required',
+              card: CardFactory.adaptiveCard({
+                type: 'AdaptiveCard',
+                version: '1.5',
+                body: [{ type: 'TextBlock', text: 'Please login to Wrike.', wrap: true }],
+                actions: [{ type: 'Action.OpenUrl', title: 'Login', url: loginUrl }]
+              })
+            }
           }
-        }
-      };
+        };
+      }
     }
 
     const html = context.activity.value?.messagePayload?.body?.content || '';
@@ -134,7 +135,6 @@ class WrikeBot extends TeamsActivityHandler {
     let folders = await this.fetchWrikeProjects(token, userId);
 
     if (!users || !folders) {
-      console.warn(`⚠ Wrike token expired for user ${userId}, prompting login`);
       const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
       return {
         task: {
@@ -162,16 +162,14 @@ class WrikeBot extends TeamsActivityHandler {
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    // Updated: Try to get from DB if not in memory
     let creds = await getUserToken(userId);
     let token = creds?.accessToken;
+    const buffer = 5 * 60 * 1000;
 
-    if (!token || (creds.expiresAt && creds.expiresAt < Date.now())) {
-      console.warn(`⚠ Token expired or missing for user ${userId}`);
+    if (!token || (creds.expiresAt && creds.expiresAt - Date.now() < buffer)) {
       try {
         token = await refreshWrikeToken(userId);
       } catch (e) {
-        console.error('❌ Token refresh failed:', e.message);
         const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
         return {
           task: {
@@ -192,10 +190,13 @@ class WrikeBot extends TeamsActivityHandler {
 
     const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
     const link = context.activity.value?.messagePayload?.linkToMessage || '';
-
     let users;
-    try { users = await this.fetchWrikeUsers(token, userId); }
-    catch (e) { console.error('❌ User fetch error:', e.message); return { task: { type: 'message', value: '⚠️ Error fetching Wrike users. Please re-login.' } }; }
+
+    try {
+      users = await this.fetchWrikeUsers(token, userId);
+    } catch (e) {
+      return { task: { type: 'message', value: '⚠️ Error fetching Wrike users. Please re-login.' } };
+    }
 
     const arr = Array.isArray(assignee) ? assignee : (typeof assignee === 'string' && assignee.includes(',')) ? assignee.split(',').map(i => i.trim()) : [assignee];
     const valids = users.map(u => u.id);
@@ -203,21 +204,57 @@ class WrikeBot extends TeamsActivityHandler {
     if (!finals.length) return { task: { type: 'message', value: '❌ Invalid assignee selected.' } };
 
     try {
-      const resp = await axios.post('https://www.wrike.com/api/v4/tasks', { title, description, importance, status: 'Active', dates: { start: startDate, due: dueDate }, responsibles: finals, parents: [location], customFields: [{ id: CUSTOM_FIELD_ID_TEAMS_LINK, value: link }] }, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await axios.post('https://www.wrike.com/api/v4/tasks', {
+        title, description, importance, status: 'Active',
+        dates: { start: startDate, due: dueDate },
+        responsibles: finals,
+        parents: [location],
+        customFields: [{ id: CUSTOM_FIELD_ID_TEAMS_LINK, value: link }]
+      }, { headers: { Authorization: `Bearer ${token}` } });
+
       const task = resp.data.data[0];
       const names = users.filter(u => finals.includes(u.id)).map(u => `👤 ${u.name}`).join('\n');
       const due = new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      return { task: { type: 'continue', value: { title: '✅ Task Created', height: 350, width: 500, card: CardFactory.adaptiveCard({ type: 'AdaptiveCard', version: '1.5', body: [ { type: 'TextBlock', text: '🎉 Task Created!', weight: 'Bolder', size: 'Large', color: 'Good' }, { type: 'TextBlock', text: `**${title}**`, wrap: true }, { type: 'TextBlock', text: `📅 Due Date: ${due}`, wrap: true }, { type: 'TextBlock', text: `👥 Assignees:\n${names}`, wrap: true }, { type: 'TextBlock', text: `📊 Importance: ${importance}`, wrap: true } ], actions: [ { type: 'Action.OpenUrl', title: '🔗 View in Wrike', url: `https://www.wrike.com/open.htm?id=${task.id}` } ] }) } } };
+
+      return {
+        task: {
+          type: 'continue',
+          value: {
+            title: '✅ Task Created',
+            height: 350,
+            width: 500,
+            card: CardFactory.adaptiveCard({
+              type: 'AdaptiveCard',
+              version: '1.5',
+              body: [
+                { type: 'TextBlock', text: '🎉 Task Created!', weight: 'Bolder', size: 'Large', color: 'Good' },
+                { type: 'TextBlock', text: `**${title}**`, wrap: true },
+                { type: 'TextBlock', text: `📅 Due Date: ${due}`, wrap: true },
+                { type: 'TextBlock', text: `👥 Assignees:\n${names}`, wrap: true },
+                { type: 'TextBlock', text: `📊 Importance: ${importance}`, wrap: true }
+              ],
+              actions: [{ type: 'Action.OpenUrl', title: '🔗 View in Wrike', url: `https://www.wrike.com/open.htm?id=${task.id}` }]
+            })
+          }
+        }
+      };
     } catch (err) {
-      console.error('❌ Wrike API Error:', err.response?.data || err.message);
       return { task: { type: 'message', value: `❌ Failed to create task: ${err.response?.data?.errorDescription || err.message}` } };
     }
   }
 
   async fetchWrikeUsers(token, userId) {
     try {
-      const res = await axios.get('https://www.wrike.com/api/v4/contacts', { headers: { Authorization: `Bearer ${token}` }, params: { deleted: false } });
-      return res.data.data.filter(u => { const p = u.profiles?.[0]; return p && ['User','Owner','Admin'].includes(p.role) && typeof p.email==='string' && !p.email.includes('wrike-robot'); }).map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email||''})` }));
+      const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { deleted: false }
+      });
+      return res.data.data
+        .filter(u => {
+          const p = u.profiles?.[0];
+          return p && ['User', 'Owner', 'Admin'].includes(p.role) && typeof p.email === 'string' && !p.email.includes('wrike-robot');
+        })
+        .map(u => ({ id: u.id, name: `${u.firstName} ${u.lastName} (${u.profiles[0]?.email || ''})` }));
     } catch (err) {
       if (err.response?.status === 401) return null;
       throw err;
@@ -226,7 +263,9 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeProjects(token, userId) {
     try {
-      const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       return res.data.data.filter(p => p.project).map(p => ({ id: p.id, title: p.title }));
     } catch (err) {
       if (err.response?.status === 401) return null;
@@ -236,18 +275,18 @@ class WrikeBot extends TeamsActivityHandler {
 }
 
 const bot = new WrikeBot();
-server.post('/api/messages',
-  (req, res, next) => {
-    adapter.processActivity(req, res, async (context) => {
-     await bot.run(context);
-   })
-     .then(() => next())            
+
+server.post('/api/messages', (req, res, next) => {
+  adapter.processActivity(req, res, async (context) => {
+    await bot.run(context);
+  })
+    .then(() => next())
     .catch(err => {
       console.error('💥 processActivity error:', err);
-      next(err);                   
+      next(err);
     });
-  }
- );
+});
+
 server.get('/auth/callback', async (req, res) => {
   try {
     const { code, state: userId } = req.query;
@@ -264,7 +303,6 @@ server.get('/auth/callback', async (req, res) => {
     const expiresAt = Date.now() + (tr.data.expires_in * 1000);
 
     await wrikeDB.saveTokens(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
-
     wrikeTokens.set(userId, {
       accessToken: tr.data.access_token,
       refreshToken: tr.data.refresh_token,
