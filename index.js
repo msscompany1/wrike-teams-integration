@@ -1,4 +1,5 @@
-const wrikeDB = require('./wrike-db'); // <-- Make sure this is present
+// === keep: your modules and behavior ===
+const wrikeDB = require('./wrike-db'); // must exist
 
 process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Promise Rejection:', reason);
@@ -24,6 +25,7 @@ const restify = require('restify');
 const axios = require('axios');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { TeamsActivityHandler, CardFactory } = require('botbuilder');
+
 const PORT = process.env.PORT || 3978;
 const CUSTOM_FIELD_ID_TEAMS_LINK = process.env.TEAMS_LINK_CUSTOM_FIELD_ID;
 
@@ -35,50 +37,53 @@ const httpsOptions = {
 const server = restify.createServer(httpsOptions);
 server.use(restify.plugins.queryParser());
 
+// simple health check
+server.get('/health', (_req, res, next) => { res.send(200, 'ok'); return next(); });
+
+// === token cache ===
 const wrikeTokens = new Map();
 
-async function refreshWrikeToken(userId) {
-  let creds = await getUserToken(userId);
-  if (!creds?.refreshToken) {
-    throw new Error('No refresh token available');
-  }
-  const resp = await axios.post('https://login.wrike.com/oauth2/token', null, {
-    params: {
-      grant_type:    'refresh_token',
-      refresh_token: creds.refreshToken,
-      client_id:     process.env.WRIKE_CLIENT_ID,
-      client_secret: process.env.WRIKE_CLIENT_SECRET,
-    }
-  });
-  const expiresAt = Date.now() + (resp.data.expires_in * 1000);
-  wrikeTokens.set(userId, {
-    accessToken:  resp.data.access_token,
-    refreshToken: resp.data.refresh_token,
-    expiresAt,
-  });
-  wrikeDB.saveTokens(userId, resp.data.access_token, resp.data.refresh_token, expiresAt);
-  return resp.data.access_token;
-}
-
 async function getUserToken(userId) {
-  let creds = wrikeTokens.get(userId);
-  if (creds) return creds;
+  const cached = wrikeTokens.get(userId);
+  if (cached) return cached;
   return new Promise((resolve) => {
     wrikeDB.loadTokens(userId, (tokens) => {
-      if (tokens) {
-        wrikeTokens.set(userId, tokens);
-        resolve(tokens);
-      } else {
-        resolve(null);
-      }
+      if (tokens) wrikeTokens.set(userId, tokens);
+      resolve(tokens || null);
     });
   });
 }
 
+async function refreshWrikeToken(userId) {
+  const creds = await getUserToken(userId);
+  if (!creds?.refreshToken) throw new Error('No refresh token available');
+
+  const resp = await axios.post('https://login.wrike.com/oauth2/token', null, {
+    params: {
+      grant_type: 'refresh_token',
+      refresh_token: creds.refreshToken,
+      client_id: process.env.WRIKE_CLIENT_ID,
+      client_secret: process.env.WRIKE_CLIENT_SECRET
+    },
+    timeout: 8000,
+  });
+
+  const expiresAt = Date.now() + (resp.data.expires_in * 1000);
+  const next = {
+    accessToken: resp.data.access_token,
+    refreshToken: resp.data.refresh_token || creds.refreshToken, // sometimes absent
+    expiresAt
+  };
+  wrikeTokens.set(userId, next);
+  wrikeDB.saveTokens(userId, next.accessToken, next.refreshToken, expiresAt);
+  return next.accessToken;
+}
+
+// === ensure port then listen ===
 const checkPort = (port) => new Promise((resolve, reject) => {
-  const tester = net.createServer()
+  const s = net.createServer()
     .once('error', err => (err.code === 'EADDRINUSE' ? reject(err) : resolve()))
-    .once('listening', () => tester.once('close', () => resolve()).close())
+    .once('listening', () => s.once('close', () => resolve()).close())
     .listen(port);
 });
 
@@ -93,21 +98,21 @@ const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID,
   appPassword: process.env.MICROSOFT_APP_PASSWORD
 });
-
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
+// ================= Bot =================
 class WrikeBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionFetchTask(context) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
     const creds = await getUserToken(userId);
-    const buffer = 5 * 60 * 1000;
+    const bufferMs = 5 * 60 * 1000;
     let token = creds?.accessToken;
 
-    if (!token || (creds?.expiresAt && creds.expiresAt - Date.now() < buffer)) {
+    if (!token || (creds?.expiresAt && (creds.expiresAt - Date.now() < bufferMs))) {
       try {
         token = await refreshWrikeToken(userId);
-      } catch (e) {
+      } catch {
         const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
         return {
           task: {
@@ -126,18 +131,18 @@ class WrikeBot extends TeamsActivityHandler {
       }
     }
 
-    // Robust extraction of message content (some clients put it at different paths)
+    // robust message content extraction
     const payload = context.activity.value?.messagePayload || context.activity.messagePayload || {};
     const html = payload?.body?.content || '';
     const plain = html.replace(/<[^>]+>/g, '').trim();
 
+    // load adaptive card
     const cardJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'cards', 'taskFormCard.json'), 'utf8'));
     const descField = cardJson.body.find(f => f.id === 'description');
     if (descField) descField.value = plain;
 
-    // Fetch users/projects, but NEVER let errors bubble into a 500
-    let users = null;
-    let folders = null;
+    // Try to fetch users/projects but NEVER throw -> show login card on failure
+    let users = null, folders = null;
     try {
       [users, folders] = await Promise.all([
         this.fetchWrikeUsers(token, userId),
@@ -165,24 +170,35 @@ class WrikeBot extends TeamsActivityHandler {
       };
     }
 
+    // populate dropdowns
     const userDropdown = cardJson.body.find(f => f.id === 'assignee');
     if (userDropdown) userDropdown.choices = users.map(u => ({ title: u.name, value: u.id }));
     const folderDropdown = cardJson.body.find(f => f.id === 'location');
     if (folderDropdown) folderDropdown.choices = folders.map(f => ({ title: f.title, value: f.id }));
 
-    return { task: { type: 'continue', value: { title: 'Create Wrike Task', card: CardFactory.adaptiveCard(cardJson), height: 600, width: 600 } } };
+    return {
+      task: {
+        type: 'continue',
+        value: {
+          title: 'Create Wrike Task',
+          height: 600,
+          width: 600,
+          card: CardFactory.adaptiveCard(cardJson)
+        }
+      }
+    };
   }
 
   async handleTeamsMessagingExtensionSubmitAction(context, action) {
     const userId = context.activity.from?.aadObjectId || context.activity.from?.id || 'fallback-user';
-    let creds = await getUserToken(userId);
+    const creds = await getUserToken(userId);
+    const bufferMs = 5 * 60 * 1000;
     let token = creds?.accessToken;
-    const buffer = 5 * 60 * 1000;
 
-    if (!token || (creds?.expiresAt && creds.expiresAt - Date.now() < buffer)) {
+    if (!token || (creds?.expiresAt && (creds.expiresAt - Date.now() < bufferMs))) {
       try {
         token = await refreshWrikeToken(userId);
-      } catch (e) {
+      } catch {
         const loginUrl = `https://login.wrike.com/oauth2/authorize?client_id=${process.env.WRIKE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.WRIKE_REDIRECT_URI}&state=${userId}`;
         return {
           task: {
@@ -201,26 +217,41 @@ class WrikeBot extends TeamsActivityHandler {
       }
     }
 
-    const { title, description, assignee, location, startDate, dueDate, importance } = action.data;
-    const link = (context.activity.value?.messagePayload?.linkToMessage) || (context.activity.messagePayload?.linkToMessage) || '';
-    let users;
+    const data = action?.data || {};
+    const title = data.title || '';
+    const description = data.description || '';
+    const location = data.location || '';
+    const startDate = data.startDate || null;
+    const dueDate = data.dueDate || null;
+    const importance = data.importance || 'High';
 
-    try {
-      users = await this.fetchWrikeUsers(token, userId);
-    } catch (e) {
-      return { task: { type: 'message', value: '⚠️ Error fetching Wrike users. Please re-login.' } };
+    // robust link extraction
+    const link =
+      context.activity.value?.messagePayload?.linkToMessage ||
+      context.activity.messagePayload?.linkToMessage ||
+      '';
+
+    // fetch users for validation
+    let users = await this.fetchWrikeUsers(token, userId);
+    if (!Array.isArray(users)) {
+      return { task: { type: 'message', value: '⚠️ Error fetching Wrike users. Please sign in again.' } };
     }
 
-    const arr = Array.isArray(assignee)
-      ? assignee
-      : (typeof assignee === 'string' && assignee.includes(',')) ? assignee.split(',').map(i => i.trim()) : [assignee];
+    // robust assignee parsing (avoid .includes on undefined)
+    const rawAssignee = data.assignee ?? '';
+    const asString = Array.isArray(rawAssignee) ? null : String(rawAssignee);
+    const arr = Array.isArray(rawAssignee)
+      ? rawAssignee
+      : (asString.includes(',') ? asString.split(',').map(s => s.trim()).filter(Boolean) : [asString].filter(Boolean));
 
-    const valids = (Array.isArray(users) ? users : []).map(u => u.id);
-    const finals = arr.filter(i => valids.includes(i));
-    if (!finals.length) return { task: { type: 'message', value: '❌ Invalid assignee selected.' } };
+    const validIds = users.map(u => u.id);
+    const finals = arr.filter(id => validIds.includes(id));
+    if (!finals.length) {
+      return { task: { type: 'message', value: '❌ Invalid assignee selected.' } };
+    }
 
     try {
-      const resp = await axios.post('https://www.wrike.com/api/v4/tasks', {
+      const payload = {
         title,
         description,
         importance,
@@ -228,12 +259,21 @@ class WrikeBot extends TeamsActivityHandler {
         dates: { start: startDate, due: dueDate },
         responsibles: finals,
         parents: [location],
-        customFields: CUSTOM_FIELD_ID_TEAMS_LINK ? [{ id: CUSTOM_FIELD_ID_TEAMS_LINK, value: link }] : []
-      }, { headers: { Authorization: `Bearer ${token}` } });
+        customFields: CUSTOM_FIELD_ID_TEAMS_LINK && link
+          ? [{ id: CUSTOM_FIELD_ID_TEAMS_LINK, value: link }]
+          : []
+      };
+
+      const resp = await axios.post('https://www.wrike.com/api/v4/tasks', payload, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000,
+      });
 
       const task = resp.data.data[0];
       const names = users.filter(u => finals.includes(u.id)).map(u => `👤 ${u.name}`).join('\n');
-      const due = dueDate ? new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+      const dueReadable = dueDate
+        ? new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        : '—';
 
       return {
         task: {
@@ -248,9 +288,9 @@ class WrikeBot extends TeamsActivityHandler {
               body: [
                 { type: 'TextBlock', text: '🎉 Task Created!', weight: 'Bolder', size: 'Large', color: 'Good' },
                 { type: 'TextBlock', text: `**${title}**`, wrap: true },
-                { type: 'TextBlock', text: `📅 Due Date: ${due}`, wrap: true },
+                { type: 'TextBlock', text: `📅 Due Date: ${dueReadable}`, wrap: true },
                 { type: 'TextBlock', text: `👥 Assignees:\n${names}`, wrap: true },
-                { type: 'TextBlock', text: `📊 Importance: ${importance || '—'}`, wrap: true }
+                { type: 'TextBlock', text: `📊 Importance: ${importance}`, wrap: true }
               ],
               actions: [{ type: 'Action.OpenUrl', title: '🔗 View in Wrike', url: `https://www.wrike.com/open.htm?id=${task.id}` }]
             })
@@ -262,24 +302,26 @@ class WrikeBot extends TeamsActivityHandler {
     }
   }
 
+  // ===== Wrike helpers (defensive) =====
   async fetchWrikeUsers(token, userId) {
     try {
-      const res = await axios.get('https://www.wrike.com/api/v4/contacts', {
+      const r = await axios.get('https://www.wrike.com/api/v4/contacts', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { deleted: false }
+        params: { deleted: false },
+        timeout: 8000,
       });
 
-      // SAFER: normalize and guard against missing emails/roles to avoid ".includes" on undefined
-      return res.data.data
+      // Normalize first, then filter — avoids ".includes" on undefined
+      return r.data.data
         .map(u => {
           const profile = Array.isArray(u.profiles) ? u.profiles[0] : undefined;
-          const role = profile?.role || '';
-          const email = (profile?.email || u.email || '').toString();
+          const email = ((profile && profile.email) || u.email || '').toString();
+          const role = (profile && profile.role) ? String(profile.role) : '';
           const name = `${u.firstName || ''} ${u.lastName || ''}`.trim();
-          return { id: u.id, role, email, name };
+          return { id: u.id, email, role, name };
         })
         .filter(u =>
-          !!u.email &&
+          u.email.length > 0 &&
           ['User', 'Owner', 'Admin'].includes(u.role) &&
           !u.email.toLowerCase().includes('wrike-robot')
         )
@@ -293,10 +335,13 @@ class WrikeBot extends TeamsActivityHandler {
 
   async fetchWrikeProjects(token, userId) {
     try {
-      const res = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
-        headers: { Authorization: `Bearer ${token}` }
+      const r = await axios.get('https://www.wrike.com/api/v4/folders?project=true', {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 8000,
       });
-      return res.data.data.filter(p => p.project).map(p => ({ id: p.id, title: p.title }));
+      return (r.data.data || [])
+        .filter(p => !!p.project)
+        .map(p => ({ id: p.id, title: p.title }));
     } catch (err) {
       if (err.response?.status === 401) return null;
       console.error('fetchWrikeProjects error:', err.response?.data || err.message);
@@ -318,9 +363,16 @@ server.post('/api/messages', (req, res, next) => {
     });
 });
 
+// ===== OAuth callback =====
+// IMPORTANT: the "code" is SINGLE-USE. If the user refreshes this page, Wrike will return invalid_grant.
 server.get('/auth/callback', async (req, res) => {
   try {
     const { code, state: userId } = req.query;
+    if (!code) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      return res.end('Missing code from Wrike');
+    }
+
     const tr = await axios.post('https://login.wrike.com/oauth2/token', null, {
       params: {
         grant_type: 'authorization_code',
@@ -328,24 +380,25 @@ server.get('/auth/callback', async (req, res) => {
         client_id: process.env.WRIKE_CLIENT_ID,
         client_secret: process.env.WRIKE_CLIENT_SECRET,
         redirect_uri: process.env.WRIKE_REDIRECT_URI
-      }
+      },
+      timeout: 8000,
     });
 
     const expiresAt = Date.now() + (tr.data.expires_in * 1000);
-
-    await wrikeDB.saveTokens(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
     wrikeTokens.set(userId, {
       accessToken: tr.data.access_token,
       refreshToken: tr.data.refresh_token,
       expiresAt
     });
+    wrikeDB.saveTokens(userId, tr.data.access_token, tr.data.refresh_token, expiresAt);
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(`
       <html>
         <body style="text-align:center;font-family:sans-serif;padding:40px;">
           <h2 style="color:green;">You have successfully logged in to Wrike</h2>
-          <p style="margin-top:20px;">You may now return to Microsoft Teams to continue your task.</p>
+          <p style="margin-top:20px;">You may now return to Microsoft Teams to continue your task.<br/>
+          <strong>Do not refresh this page</strong> (the one-time code would be reused).</p>
           <a href="https://teams.microsoft.com" style="display:inline-block;margin-top:30px;padding:10px 20px;background-color:#6264A7;color:white;text-decoration:none;border-radius:5px;">
             Open Microsoft Teams
           </a>
